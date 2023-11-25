@@ -88,10 +88,27 @@ export class HeatzyAccessory {
 
       if (response.status === 200 && response.data && response.data.attr) {
         const apiMode = response.data.attr.mode;
-        const currentMode = this.reverseModeMapping[apiMode] || 'Unknown';
-        const isOn = currentMode === this.mode;
 
-        this.platform.log.info(`Current state of '${this.accessory.displayName}' is: ${isOn ? 'On' : 'Off'}`);
+        // Log the mode returned by the API
+        this.platform.log.debug(`API returned mode for '${this.accessory.displayName}': ${apiMode}`);
+
+        const currentMode = this.reverseModeMapping[apiMode] || 'Unknown';
+
+        // Log the mapped current mode
+        this.platform.log.debug(`API mapped mode is '${this.accessory.displayName}': ${currentMode}`);
+
+        // Log the target mode (configured mode of the accessory)
+        this.platform.log.debug(`Target mode for '${this.accessory.displayName}': ${this.mode}`);
+
+        let isOn;
+        if (apiMode === 'stop') {
+          isOn = false; // 'stop' always results in OFF
+        } else {
+          isOn = currentMode === this.mode; // ON if current mode matches the configured mode
+        }
+
+        // Log the final ON/OFF status
+        this.platform.log.info(`Current state of '${this.accessory.displayName}' determined as: ${isOn ? 'On' : 'Off'}`);
         callback(null, isOn);
       } else {
         throw new Error('Non-200 response or invalid data format');
@@ -101,6 +118,7 @@ export class HeatzyAccessory {
       callback(error);
     }
   }
+
 
   async getDeviceState(): Promise<boolean> {
     if (this.platform.needsAuthentication()) {
@@ -132,14 +150,18 @@ export class HeatzyAccessory {
   }
 
   startPolling() {
-    const pollingInterval = 60000; // Poll every 60 seconds, adjust as necessary
+    const basePollingInterval = 60000; // Base poll interval of 60 seconds
+    const randomInterval = () => Math.floor(Math.random() * 10000) + 5000; // Random additional interval between 5 to 10 seconds
 
     const poll = async () => {
       const isOn = await this.getDeviceState();
       this.service.updateCharacteristic(this.platform.api.hap.Characteristic.On, isOn);
+
+      // Schedule the next poll with a random additional interval
+      setTimeout(poll, basePollingInterval + randomInterval());
     };
 
     poll(); // Initial poll
-    setInterval(poll, pollingInterval); // Continuous polling
   }
+
 }
