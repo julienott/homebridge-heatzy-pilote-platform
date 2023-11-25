@@ -132,7 +132,7 @@ export class HeatzyAccessory {
   }
 
   startPolling() {
-    const pollingInterval = 30000; // Poll every 30 seconds, adjust as necessary
+    const pollingInterval = 60000; // Poll every 60 seconds, adjust as necessary
 
     const poll = async () => {
       const isOn = await this.getDeviceState();
