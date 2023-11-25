@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/julienott/homebridge-heatzy-pilote-platform"
+    "url": "git+https://github.com/julienott/homebridge-heatzy-pilote-platform.git"
   },
   "bugs": {
     "url": "https://github.com/julienott/homebridge-heatzy-pilote-platform/issues"
