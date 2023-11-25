@@ -22,43 +22,41 @@ export class HeatzyAccessory {
   };
 
   private off_mode = 3;
-  private mode: string; // Add mode as a class property
+  private mode: string; 
 
   constructor(
     private readonly platform: Heatzy,
     private readonly accessory: PlatformAccessory,
     private readonly device: any,
-    mode: string, // Constructor parameter
+    mode: string,
   ) {
-    this.mode = mode; // Store mode
+    this.mode = mode; 
     this.platform.log.info('Initializing accessory:', accessory.displayName);
 
     this.service = this.accessory.getService(this.platform.api.hap.Service.Switch) ||
                    this.accessory.addService(this.platform.api.hap.Service.Switch, accessory.displayName);
 
-    this.service.getCharacteristic(this.platform.api.hap.Characteristic.On)
-      .on('set', (value, callback) => this.setDeviceState(!!value, callback))
-      .on('get', callback => this.getDeviceState(callback));
-    this.startPolling();
+                   this.service.getCharacteristic(this.platform.api.hap.Characteristic.On)
+                   .on('set', (value, callback) => this.setDeviceState(!!value, callback))
+                   .on('get', (callback) => {
+                     this.getDeviceState()
+                       .then(isOn => callback(null, isOn))
+                       .catch(error => {
+                         this.platform.log.error('Error getting device state:', error);
+                         callback(error); // Pass the error to the callback
+                       });
+                   });
+    this.updateDeviceState();
   }
 
-  // Add a method to fetch device status periodically
-  startPolling() {
-    // Fetch the device status initially
-    this.getDeviceState((error, isOn) => {
-      if (!error) {
-        // Schedule to fetch device status every 60 seconds (60,000 milliseconds)
-        setInterval(() => {
-          this.getDeviceState((error, isOn) => {
-            if (error) {
-              this.platform.log.error('Failed to fetch device state:', error);
-            }
-          });
-        }, 60000); // 60 seconds
-      } else {
-        this.platform.log.error('Failed to fetch initial device state:', error);
-      }
-    });
+  async updateDeviceState() {
+    try {
+      const isOn = await this.getDeviceState();
+      this.service.updateCharacteristic(this.platform.api.hap.Characteristic.On, isOn);
+    } catch (error) {
+      this.platform.log.error('Error updating device state:', error);
+    }
+    setTimeout(() => this.updateDeviceState(), 60000); // 60 seconds
   }
 
   async setDeviceState(value: boolean, callback: Function) {
@@ -79,7 +77,6 @@ export class HeatzyAccessory {
       });
 
       if (response.status === 200) {
-        // Log the success message with device name, mode, and state
         const stateStr = value ? 'On' : 'Off';
         this.platform.log.info(`Device state set successfully: ${this.accessory.displayName} - Mode: ${this.mode} - State: ${stateStr}`);
         callback(null); // No error
@@ -90,50 +87,39 @@ export class HeatzyAccessory {
       this.platform.log.error('Failed to set device state:', (error as Error).message);
       callback(error); // Error
     }
+}
+
+
+async getDeviceState(): Promise<boolean> {
+  if (this.platform.needsAuthentication()) {
+      await this.platform.authenticate();
   }
 
-  async getDeviceState(callback: Function) {
-    if (this.platform.needsAuthentication()) {
-      await this.platform.authenticate();
-    }
+  const url = `https://euapi.gizwits.com/app/devdata/${this.device.did}/latest`;
 
-    const url = `https://euapi.gizwits.com/app/devdata/${this.device.did}/latest`;
-
-    try {
+  try {
       const response = await axios.get(url, {
-        headers: {
-          'Accept': 'application/json',
-          'X-Gizwits-User-token': this.platform.getToken(),
-          'X-Gizwits-Application-Id': 'c70a66ff039d41b4a220e198b0fcc8b3',
-        },
+          headers: {
+              'Accept': 'application/json',
+              'X-Gizwits-User-token': this.platform.getToken(),
+              'X-Gizwits-Application-Id': 'c70a66ff039d41b4a220e198b0fcc8b3',
+          },
       });
 
-      // Log the status code and response data for debugging
-      // this.platform.log.debug('Response status:', response.status);
-      // this.platform.log.debug('Response data:', response.data);
-
       if (response.status === 200 && response.data && response.data.attr) {
-        const apiMode = response.data.attr.mode;
-        const currentMode = this.reverseModeMapping[apiMode] || 'Unknown'; // Default to 'Unknown' if not found
-        const isOn = currentMode === this.mode; // Compare with human-readable mode
+          const apiMode = response.data.attr.mode;
+          const currentMode = this.reverseModeMapping[apiMode] || 'Unknown'; 
+          const isOn = currentMode === this.mode;
 
-        if (currentMode === 'Unknown') {
-          // Log the mode received from the API
-          this.platform.log.warn(`Unknown mode received from API: ${apiMode}`);
-        }
-        this.platform.log.info(`Fetched device state: ${this.accessory.displayName} - Mode: ${currentMode} - State: ${isOn ? 'On' : 'Off'}`);
-        callback(null, isOn);
+          return isOn;
       } else {
-        throw new Error('Non-200 response or invalid data format');
+          throw new Error('Non-200 response or invalid data format');
       }
-    } catch (error) {
-      this.platform.log.error('Failed to get device state:', (error as Error).message);
-      if (axios.isAxiosError(error) && error.response) {
-        // Log the detailed response for more insight
-        // this.platform.log.error('Error response:', error.response.data);
-      }
-      callback(error);
-    }
+  } catch (error) {
+      this.platform.log.error('Failed to get device state:', error);
+      throw error;
   }
+}
+
 
 }
