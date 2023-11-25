@@ -2,7 +2,7 @@
   "pluginAlias": "Heatzy",
   "pluginType": "platform",
   "singular": true,
-  "headerDisplay": "Please provide your Heatzy login details",
+  "headerDisplay": "<p align=\"center\"><img width=\"60%\" src=\"https://raw.githubusercontent.com/julienott/homebridge-heatzy-pilote-platform/latest/heatzy.png\" /></p><p align=\"center\">Please provide your Heatzy login details</p>",
   "footerDisplay": "These should be the same credentials you use in the Heatzy app.",
   "schema": {
     "type": "object",
