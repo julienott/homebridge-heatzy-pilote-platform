@@ -22,7 +22,7 @@ export class HeatzyAccessory {
   };
 
   private off_mode = 3;
-  private mode: string; 
+  private mode: string;
 
   constructor(
     private readonly platform: Heatzy,
@@ -30,15 +30,15 @@ export class HeatzyAccessory {
     private readonly device: any,
     mode: string,
   ) {
-    this.mode = mode; 
+    this.mode = mode;
     this.platform.log.info('Initializing accessory:', accessory.displayName);
 
     this.service = this.accessory.getService(this.platform.api.hap.Service.Switch) ||
                    this.accessory.addService(this.platform.api.hap.Service.Switch, accessory.displayName);
 
-                   this.service.getCharacteristic(this.platform.api.hap.Characteristic.On)
-                   .on('set', (value, callback) => this.setOnCharacteristicHandler(value, callback))
-                   .on('get', callback => this.getOnCharacteristicHandler(callback));
+    this.service.getCharacteristic(this.platform.api.hap.Characteristic.On)
+      .on('set', (value, callback) => this.setOnCharacteristicHandler(value, callback))
+      .on('get', callback => this.getOnCharacteristicHandler(callback));
   }
 
   async setOnCharacteristicHandler(value: CharacteristicValue, callback: Function) {
@@ -58,7 +58,7 @@ export class HeatzyAccessory {
         },
       });
 
-      this.platform.log.info(`Device state set to: ${value ? 'On' : 'Off'}`);
+      this.platform.log.info(`Device state for '${this.accessory.displayName}' set to: ${value ? 'On' : 'Off'}`);
       callback(null); // No error
     } catch (error) {
       this.platform.log.error('Failed to set device state:', error);
@@ -84,7 +84,7 @@ export class HeatzyAccessory {
 
       if (response.status === 200 && response.data && response.data.attr) {
         const apiMode = response.data.attr.mode;
-        const currentMode = this.reverseModeMapping[apiMode] || 'Unknown'; 
+        const currentMode = this.reverseModeMapping[apiMode] || 'Unknown';
         const isOn = currentMode === this.mode;
 
         callback(null, isOn);
