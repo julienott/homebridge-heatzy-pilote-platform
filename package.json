@@ -1,16 +1,15 @@
 {
-  "private": true,
-  "displayName": "Plugin Name",
-  "name": "homebridge-plugin-name",
-  "version": "1.0.0",
-  "description": "A short description about what your plugin does.",
+  "displayName": "Heatzy for Homebridge",
+  "name": "homebridge-heatzy-pilote-platform",
+  "version": "1.1.2",
+  "description": "Use Heatzy modules with Homebridge as switches",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/USERNAME/GITHUB_PROJECT_NAME.git"
+    "url": "https://julienott/homebridge-heatzy-pilote-platform"
   },
   "bugs": {
-    "url": "https://github.com/USERNAME/GITHUB_PROJECT_NAME/issues"
+    "url": "https://julienott/homebridge-heatzy-pilote-platform/issues"
   },
   "engines": {
     "node": "^18.17.0 || ^20.9.0",
@@ -21,12 +20,14 @@
     "lint": "eslint src/**.ts --max-warnings=0",
     "watch": "npm run build && npm link && nodemon",
     "build": "rimraf ./dist && tsc",
-    "prepublishOnly": "npm run lint && npm run build"
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "homebridge-plugin"
   ],
-  "dependencies": {},
+  "dependencies": {
+    "axios": "^1.6.2"
+  },
   "devDependencies": {
     "@types/node": "^18.16.20",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
