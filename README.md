@@ -1,6 +1,6 @@
 ![Heatzy Logo](https://raw.githubusercontent.com/julienott/homebridge-heatzy-pilote-platform/latest/heatzy.png)
 
-# homebridge-heatzy-pilote-platform
+# Homebridge Platform Plugin for Heatzy Pilote devices
 
 Homebridge plugin for Heatzy Pilote devices, considered as switches, for any mode.
 
@@ -33,4 +33,5 @@ Select at least one mode to import your accessories.
 
 ## Credits and inspiration
 https://github.com/Fourni-j/homebridge-heatzy-pilote-eco
+
 https://github.com/AlainKaim/homebridge-heatzy-as-switch
