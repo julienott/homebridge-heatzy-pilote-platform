@@ -1,16 +1,35 @@
 {
-  "pluginAlias": "ExampleHomebridgePlugin",
+  "pluginAlias": "Heatzy",
   "pluginType": "platform",
   "singular": true,
+  "headerDisplay": "Please provide your Heatzy login details",
+  "footerDisplay": "These should be the same credentials you use in the Heatzy app.",
   "schema": {
     "type": "object",
     "properties": {
-      "name": {
-        "title": "Name",
+      "username": {
+        "title": "Email",
+        "type": "string",
+        "required": true
+      },
+      "password": {
+        "title": "Password",
         "type": "string",
         "required": true,
-        "default": "Example Dynamic Platform"
+        "format": "password"
+      },
+      "modes": {
+        "title": "Choose the switch modes you wish to show.",
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": ["Confort", "Eco", "Eco Plus", "Sleep", "Antifreeze"]
+        },
+        "uniqueItems": true,
+        "minItems": 1
       }
     }
-  }
+  },
+  "form": null,
+  "display": null
 }
