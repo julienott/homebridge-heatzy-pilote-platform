@@ -58,7 +58,7 @@ export class HeatzyAccessory {
         },
       });
 
-      this.platform.log.info(`Device state for '${this.accessory.displayName}' set to: ${value ? 'On' : 'Off'}`);
+      this.platform.log.info(`Device state for '${this.accessory.displayName}' set to: ${value ? '\x1b[32mOn\x1b[0m' : '\x1b[31mOff\x1b[0m'}`);
       callback(null); // No error
     } catch (error) {
       this.platform.log.error('Failed to set device state:', error);
@@ -67,6 +67,8 @@ export class HeatzyAccessory {
   }
 
   async getOnCharacteristicHandler(callback: Function) {
+    this.platform.log.info(`HomeKit is requesting the current state of '${this.accessory.displayName}'`);
+
     if (this.platform.needsAuthentication()) {
       await this.platform.authenticate();
     }
@@ -87,13 +89,15 @@ export class HeatzyAccessory {
         const currentMode = this.reverseModeMapping[apiMode] || 'Unknown';
         const isOn = currentMode === this.mode;
 
+        this.platform.log.info(`Current state of '${this.accessory.displayName}' is: ${isOn ? '\x1b[32mOn\x1b[0m' : '\x1b[31mOff\x1b[0m'}`);
         callback(null, isOn);
       } else {
         throw new Error('Non-200 response or invalid data format');
       }
     } catch (error) {
-      this.platform.log.error('Failed to get device state:', error);
+      this.platform.log.error(`Failed to get device state for '${this.accessory.displayName}':`, error);
       callback(error);
     }
   }
+
 }
