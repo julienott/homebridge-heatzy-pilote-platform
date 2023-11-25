@@ -1,7 +1,7 @@
 {
   "displayName": "Heatzy for Homebridge",
   "name": "homebridge-heatzy-pilote-platform",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Use Heatzy modules with Homebridge as switches",
   "license": "Apache-2.0",
   "repository": {
