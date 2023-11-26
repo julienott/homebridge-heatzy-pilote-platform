@@ -16,7 +16,7 @@ export class HeatzyAccessory {
     'cft': 'Confort',
     'eco': 'Sleep',
     'fro': 'Antifreeze',
-    'stop': '\u001b[31mOff\u001b[0m',
+    'stop': 'Off',
     'cft1': 'Eco',
     'cft2': 'Eco Plus',
   };
@@ -42,6 +42,11 @@ export class HeatzyAccessory {
 
     this.fetchInitialState();
     this.startPolling();
+  }
+
+  // Public getter for mode
+  getMode() {
+    return this.mode;
   }
 
   private async fetchInitialState() {
@@ -102,6 +107,7 @@ export class HeatzyAccessory {
 
       if (value) {
         this.platform.updateDeviceState(this.device.did, this.mode);
+        this.platform.notifyModeChange(this.device.did, this.mode);
       }
 
       if (value) {

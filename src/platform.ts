@@ -127,6 +127,20 @@ export class Heatzy implements DynamicPlatformPlugin {
     }
   }
 
+  notifyModeChange(did: string, activeMode: string) {
+    this.deviceStateCache[did] = { state: activeMode, timestamp: Date.now() };
+
+    // Loop through all accessories and update their state
+    this.accessories.forEach(accessory => {
+      if (accessory.context.device.did === did) {
+        const accessoryInstance = this.accessoryInstances.get(accessory.UUID);
+        if (accessoryInstance && accessoryInstance.getMode() !== activeMode) {
+          accessoryInstance.updateState('off'); // Set other modes to off
+        }
+      }
+    });
+  }
+
   getDeviceState(did: string): string | null {
     const cachedState = this.deviceStateCache[did];
     if (cachedState) {
