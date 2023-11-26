@@ -4,6 +4,8 @@ import { HeatzyAccessory } from './platformAccessory';
 
 export class Heatzy implements DynamicPlatformPlugin {
   private readonly accessories: PlatformAccessory[] = [];
+  private readonly deviceStateCache: Record<string, { state: string; timestamp: number }> = {};
+  private readonly accessoryInstances: Map<string, HeatzyAccessory> = new Map();
   private token: string | null = null;
   private tokenExpireAt: number | null = null;
 
@@ -30,11 +32,9 @@ export class Heatzy implements DynamicPlatformPlugin {
         },
       });
 
-      const { token } = response.data;
-      this.token = token;
+      this.token = response.data.token;
       this.tokenExpireAt = new Date().getTime() + 3600000; // 1 hour token validity
       this.fetchDevices();
-
     } catch (error) {
       this.log.error('Error authenticating:', (error as Error).message);
     }
@@ -58,7 +58,6 @@ export class Heatzy implements DynamicPlatformPlugin {
       const devices = response.data.devices;
       const selectedModes = this.config.modes || [];
 
-      // Remove accessories not present in fetched devices or not in selected modes
       this.accessories.forEach(accessory => {
         const isDeviceFetched = devices.some(device => accessory.context.device.did === device.did);
         const isModeSelected = selectedModes.includes(accessory.context.mode);
@@ -69,10 +68,9 @@ export class Heatzy implements DynamicPlatformPlugin {
         }
       });
 
-      // Add or update accessories for fetched devices
       devices.forEach(device => {
         selectedModes.forEach(mode => {
-          this.addAccessory(device, mode); // Create accessory for each selected mode
+          this.addAccessory(device, mode);
         });
       });
 
@@ -83,23 +81,25 @@ export class Heatzy implements DynamicPlatformPlugin {
   }
 
   addAccessory(device: any, mode: string) {
-    const uniqueId = device.did + ' ' + mode; // Unique ID for each mode
+    const uniqueId = device.did + ' ' + mode;
     const uuid = this.api.hap.uuid.generate(uniqueId);
     const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
 
     if (existingAccessory) {
       this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
       existingAccessory.context.device = device;
-      existingAccessory.context.mode = mode; // Store the mode in the context
-      new HeatzyAccessory(this, existingAccessory, device, mode);
+      existingAccessory.context.mode = mode;
+      const accessoryInstance = new HeatzyAccessory(this, existingAccessory, device, mode);
+      this.accessoryInstances.set(existingAccessory.UUID, accessoryInstance);
     } else {
       const displayName = `${device.dev_alias} ${mode}`;
       this.log.info('Adding new accessory:', displayName);
 
       const accessory = new this.api.platformAccessory(displayName, uuid);
       accessory.context.device = device;
-      accessory.context.mode = mode; // Store the mode in the context
-      new HeatzyAccessory(this, accessory, device, mode);
+      accessory.context.mode = mode;
+      const accessoryInstance = new HeatzyAccessory(this, accessory, device, mode);
+      this.accessoryInstances.set(accessory.UUID, accessoryInstance);
       this.api.registerPlatformAccessories('homebridge-heatzy-pilote-platform', 'Heatzy', [accessory]);
       this.accessories.push(accessory);
     }
@@ -108,6 +108,26 @@ export class Heatzy implements DynamicPlatformPlugin {
   configureAccessory(accessory: PlatformAccessory): void {
     this.log.info('Configuring accessory:', accessory.displayName);
     this.accessories.push(accessory);
+  }
+
+  updateDeviceState(did: string, activeMode: string) {
+    this.deviceStateCache[did] = { state: activeMode, timestamp: Date.now() };
+
+    this.accessories.forEach(accessory => {
+      if (accessory.context.device.did === did) {
+        const accessoryInstance = this.accessoryInstances.get(accessory.UUID);
+        accessoryInstance?.updateState(activeMode);
+      }
+    });
+  }
+
+  getDeviceState(did: string): string | null {
+    const cachedState = this.deviceStateCache[did];
+    if (cachedState) {
+      this.log.debug(`Retrieving cached state for device '${did}': ${cachedState.state}`);
+      return cachedState.state;
+    }
+    return null;
   }
 
   getToken(): string | null {

@@ -60,6 +60,10 @@ export class HeatzyAccessory {
         },
       });
 
+      if (value) {
+        this.platform.updateDeviceState(this.device.did, this.mode);
+      }
+
       this.platform.log.info(`Device state for '${this.accessory.displayName}' set to: ${value ? 'On' : 'Off'}`);
       callback(null); // No error
     } catch (error) {
@@ -75,60 +79,16 @@ export class HeatzyAccessory {
       await this.platform.authenticate();
     }
 
-    const url = `https://euapi.gizwits.com/app/devdata/${this.device.did}/latest`;
+    const currentState = this.platform.getDeviceState(this.device.did);
+    const isOn = currentState === this.mode;
 
-    try {
-      const response = await axios.get(url, {
-        headers: {
-          'Accept': 'application/json',
-          'X-Gizwits-User-token': this.platform.getToken(),
-          'X-Gizwits-Application-Id': 'c70a66ff039d41b4a220e198b0fcc8b3',
-        },
-      });
+    this.platform.log.info(`Current state of '${this.accessory.displayName}' determined as: ${isOn ? 'On' : 'Off'}`);
+    callback(null, isOn);
+  }
 
-      if (response.status === 200 && response.data && response.data.attr) {
-        const apiMode = response.data.attr.mode;
-
-        // Log the mode returned by the API
-        this.platform.log.debug(`API returned mode for '${this.accessory.displayName}': ${apiMode}`);
-
-        const currentMode = this.reverseModeMapping[apiMode] || 'Unknown';
-
-        // Log the mapped current mode
-        this.platform.log.debug(`API mapped mode is '${this.accessory.displayName}': ${currentMode}`);
-
-        // Log the target mode (configured mode of the accessory)
-        this.platform.log.debug(`Target mode for '${this.accessory.displayName}': ${this.mode}`);
-
-        let isOn;
-        if (apiMode === 'stop') {
-          isOn = false; // 'stop' always results in OFF
-        } else {
-          isOn = currentMode === this.mode; // ON if current mode matches the configured mode
-        }
-
-        // Log the final ON/OFF status
-        this.platform.log.info(`Current state of '${this.accessory.displayName}' determined as: ${isOn ? 'On' : 'Off'}`);
-        callback(null, isOn);
-      } else {
-        throw new Error('Non-200 response or invalid data format');
-      }
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response) {
-        // Log only the status code for normal operation
-        this.platform.log.error(`Error getting device state for '${this.accessory.displayName}', Status Code: ${error.response.status}`);
-        // More verbose log for debugging
-        this.platform.log.debug('Error details:', error);
-      } else if (error instanceof Error) {
-        // General error logging for non-Axios errors
-        this.platform.log.error(`Error getting device state for '${this.accessory.displayName}':`, error.message);
-      } else {
-        // Fallback for when error is not an Error instance
-        this.platform.log.error(`Error getting device state for '${this.accessory.displayName}', but the error type is unknown.`);
-      }
-      callback(error);
-      return false;
-    }
+  updateState(activeMode: string) {
+    const isOn = activeMode === this.mode;
+    this.service.updateCharacteristic(this.platform.api.hap.Characteristic.On, isOn);
   }
 
 
@@ -186,5 +146,4 @@ export class HeatzyAccessory {
 
     poll(); // Initial poll
   }
-
 }
