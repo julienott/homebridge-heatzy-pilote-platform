@@ -47,6 +47,10 @@ export class HeatzyAccessory {
   private async fetchInitialState() {
     try {
       const isOn = await this.getDeviceState();
+
+      // Update the cache with the fetched state
+      this.platform.updateDeviceState(this.device.did, isOn ? this.mode : 'Off');
+
       this.service.updateCharacteristic(this.platform.api.hap.Characteristic.On, isOn);
       this.platform.log.info(`Initialized '${this.accessory.displayName}' with state: ${isOn ? 'On' : 'Off'}`);
     } catch (error) {
