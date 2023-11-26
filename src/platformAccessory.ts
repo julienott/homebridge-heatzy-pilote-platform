@@ -114,8 +114,20 @@ export class HeatzyAccessory {
         throw new Error('Non-200 response or invalid data format');
       }
     } catch (error) {
-      this.platform.log.error(`Failed to get device state for '${this.accessory.displayName}':`, error);
+      if (axios.isAxiosError(error) && error.response) {
+        // Log only the status code for normal operation
+        this.platform.log.error(`Error getting device state for '${this.accessory.displayName}', Status Code: ${error.response.status}`);
+        // More verbose log for debugging
+        this.platform.log.debug('Error details:', error);
+      } else if (error instanceof Error) {
+        // General error logging for non-Axios errors
+        this.platform.log.error(`Error getting device state for '${this.accessory.displayName}':`, error.message);
+      } else {
+        // Fallback for when error is not an Error instance
+        this.platform.log.error(`Error getting device state for '${this.accessory.displayName}', but the error type is unknown.`);
+      }
       callback(error);
+      return false;
     }
   }
 
@@ -144,7 +156,18 @@ export class HeatzyAccessory {
         throw new Error('Non-200 response or invalid data format');
       }
     } catch (error) {
-      this.platform.log.error(`Error polling device state for '${this.accessory.displayName}':`, error);
+      if (axios.isAxiosError(error) && error.response) {
+        // Log only the status code for normal operation
+        this.platform.log.error(`Error getting device state for '${this.accessory.displayName}', Status Code: ${error.response.status}`);
+        // More verbose log for debugging
+        this.platform.log.debug('Error details:', error);
+      } else if (error instanceof Error) {
+        // General error logging for non-Axios errors
+        this.platform.log.error(`Error getting device state for '${this.accessory.displayName}':`, error.message);
+      } else {
+        // Fallback for when error is not an Error instance
+        this.platform.log.error(`Error getting device state for '${this.accessory.displayName}', but the error type is unknown.`);
+      }
       return false;
     }
   }
