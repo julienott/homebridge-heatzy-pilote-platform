@@ -40,7 +40,18 @@ export class HeatzyAccessory {
       .on('set', (value, callback) => this.setOnCharacteristicHandler(value, callback))
       .on('get', callback => this.getOnCharacteristicHandler(callback));
 
+    this.fetchInitialState();
     this.startPolling();
+  }
+
+  private async fetchInitialState() {
+    try {
+      const isOn = await this.getDeviceState();
+      this.service.updateCharacteristic(this.platform.api.hap.Characteristic.On, isOn);
+      this.platform.log.info(`Initialized '${this.accessory.displayName}' with state: ${isOn ? 'On' : 'Off'}`);
+    } catch (error) {
+      this.platform.log.error(`Failed to fetch initial state for '${this.accessory.displayName}':`, error);
+    }
   }
 
   async setOnCharacteristicHandler(value: CharacteristicValue, callback: Function) {
