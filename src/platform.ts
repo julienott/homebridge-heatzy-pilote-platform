@@ -58,6 +58,9 @@ export class Heatzy implements DynamicPlatformPlugin {
       const devices = response.data.devices;
       const selectedModes = this.config.modes || [];
 
+      // Additional code to list device names
+      const deviceNames = devices.map(device => device.dev_alias || 'Unnamed Device').join(', ');
+
       this.accessories.forEach(accessory => {
         const isDeviceFetched = devices.some(device => accessory.context.device.did === device.did);
         const isModeSelected = selectedModes.includes(accessory.context.mode);
@@ -74,11 +77,12 @@ export class Heatzy implements DynamicPlatformPlugin {
         });
       });
 
-      this.log.info('Fetched devices:', devices.length);
+      this.log.info(`Fetched devices: ${devices.length} [${deviceNames}]`);
     } catch (error) {
       this.log.error('Error fetching devices:', (error as Error).message);
     }
   }
+
 
   addAccessory(device: any, mode: string) {
     const uniqueId = device.did + ' ' + mode;
@@ -86,7 +90,7 @@ export class Heatzy implements DynamicPlatformPlugin {
     const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
 
     if (existingAccessory) {
-      this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
+      this.log.debug('Restoring existing accessory from cache:', existingAccessory.displayName);
       existingAccessory.context.device = device;
       existingAccessory.context.mode = mode;
       const accessoryInstance = new HeatzyAccessory(this, existingAccessory, device, mode);
@@ -110,15 +114,17 @@ export class Heatzy implements DynamicPlatformPlugin {
     this.accessories.push(accessory);
   }
 
-  updateDeviceState(did: string, activeMode: string) {
-    this.deviceStateCache[did] = { state: activeMode, timestamp: Date.now() };
-
-    this.accessories.forEach(accessory => {
-      if (accessory.context.device.did === did) {
-        const accessoryInstance = this.accessoryInstances.get(accessory.UUID);
-        accessoryInstance?.updateState(activeMode);
-      }
-    });
+  updateDeviceState(did: string, activeMode: string, forceUpdate = false) {
+    const cachedState = this.deviceStateCache[did];
+    if (!cachedState || forceUpdate || cachedState.timestamp < Date.now() - 60000) { // 60 seconds threshold
+      this.deviceStateCache[did] = { state: activeMode, timestamp: Date.now() };
+      this.accessories.forEach(accessory => {
+        if (accessory.context.device.did === did) {
+          const accessoryInstance = this.accessoryInstances.get(accessory.UUID);
+          accessoryInstance?.updateState(activeMode);
+        }
+      });
+    }
   }
 
   getDeviceState(did: string): string | null {

@@ -16,7 +16,7 @@ export class HeatzyAccessory {
     'cft': 'Confort',
     'eco': 'Sleep',
     'fro': 'Antifreeze',
-    'stop': 'Off',
+    'stop': '\u001b[31mOff\u001b[0m',
     'cft1': 'Eco',
     'cft2': 'Eco Plus',
   };
@@ -45,18 +45,43 @@ export class HeatzyAccessory {
   }
 
   private async fetchInitialState() {
+    if (this.platform.needsAuthentication()) {
+      await this.platform.authenticate();
+    }
+
+    const url = `https://euapi.gizwits.com/app/devdata/${this.device.did}/latest`;
+
     try {
-      const isOn = await this.getDeviceState();
+      const response = await axios.get(url, {
+        headers: {
+          'Accept': 'application/json',
+          'X-Gizwits-User-token': this.platform.getToken(),
+          'X-Gizwits-Application-Id': 'c70a66ff039d41b4a220e198b0fcc8b3',
+        },
+      });
 
-      // Update the cache with the fetched state
-      this.platform.updateDeviceState(this.device.did, isOn ? this.mode : 'Off');
+      if (response.status === 200 && response.data && response.data.attr) {
+        const apiMode = response.data.attr.mode;
+        const currentMode = this.reverseModeMapping[apiMode] || 'Unknown';
+        const isOn = currentMode === this.mode;
+        this.service.updateCharacteristic(this.platform.api.hap.Characteristic.On, isOn);
 
-      this.service.updateCharacteristic(this.platform.api.hap.Characteristic.On, isOn);
-      this.platform.log.info(`Initialized '${this.accessory.displayName}' with state: ${isOn ? 'On' : 'Off'}`);
+        // Update the cache with the real-time state
+        this.platform.updateDeviceState(this.device.did, currentMode, true);
+
+        if (isOn) {
+          this.platform.log.info(`Initialized '${this.accessory.displayName}' with state: \u001b[32mOn\u001b[0m`);
+        } else {
+          this.platform.log.debug(`Initialized '${this.accessory.displayName}' with state: \u001b[31mOff\u001b[0m`);
+        }
+      } else {
+        throw new Error('Invalid response format');
+      }
     } catch (error) {
       this.platform.log.error(`Failed to fetch initial state for '${this.accessory.displayName}':`, error);
     }
   }
+
 
   async setOnCharacteristicHandler(value: CharacteristicValue, callback: Function) {
     if (this.platform.needsAuthentication()) {
@@ -79,7 +104,11 @@ export class HeatzyAccessory {
         this.platform.updateDeviceState(this.device.did, this.mode);
       }
 
-      this.platform.log.info(`Device state for '${this.accessory.displayName}' set to: ${value ? 'On' : 'Off'}`);
+      if (value) {
+        this.platform.log.info(`Changed '${this.accessory.displayName}' to \u001b[32mOn\u001b[0m`);
+      } else {
+        this.platform.log.info(`Changed '${this.accessory.displayName}' to \u001b[31mOff\u001b[0m`);
+      }
       callback(null); // No error
     } catch (error) {
       this.platform.log.error('Failed to set device state:', error);
@@ -88,7 +117,7 @@ export class HeatzyAccessory {
   }
 
   async getOnCharacteristicHandler(callback: Function) {
-    this.platform.log.info(`HomeKit is requesting the current state of '${this.accessory.displayName}'`);
+    this.platform.log.debug(`HomeKit is requesting the current state of '${this.accessory.displayName}'`);
 
     if (this.platform.needsAuthentication()) {
       await this.platform.authenticate();
@@ -97,7 +126,12 @@ export class HeatzyAccessory {
     const currentState = this.platform.getDeviceState(this.device.did);
     const isOn = currentState === this.mode;
 
-    this.platform.log.info(`Current state of '${this.accessory.displayName}' determined as: ${isOn ? 'On' : 'Off'}`);
+    // Use info level for ON, debug level for OFF
+    if (isOn) {
+      this.platform.log.info(`Current state of '${this.accessory.displayName}' determined as \u001b[32mOn\u001b[0m`);
+    } else {
+      this.platform.log.debug(`Current state of '${this.accessory.displayName}' determined as \u001b[31mOff\u001b[0m`);
+    }
     callback(null, isOn);
   }
 
@@ -152,6 +186,8 @@ export class HeatzyAccessory {
     const randomInterval = () => Math.floor(Math.random() * 10000) + 5000; // Random additional interval between 5 to 10 seconds
 
     const poll = async () => {
+      this.platform.log.debug(`Scheduled API update request for '${this.accessory.displayName}'`);
+
       const isOn = await this.getDeviceState();
       this.service.updateCharacteristic(this.platform.api.hap.Characteristic.On, isOn);
 
