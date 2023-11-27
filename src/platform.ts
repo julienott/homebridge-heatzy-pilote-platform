@@ -31,9 +31,9 @@ export class Heatzy implements DynamicPlatformPlugin {
           'X-Gizwits-Application-Id': 'c70a66ff039d41b4a220e198b0fcc8b3',
         },
       });
-
+      this.log.debug('Authentication response:', response.data);
       this.token = response.data.token;
-      this.tokenExpireAt = response.data.expire_at;
+      this.tokenExpireAt = response.data.expire_at * 1000;
       const expirationDate = this.tokenExpireAt ? new Date(this.tokenExpireAt).toLocaleString() : 'Unknown';
       this.log.debug(`Authenticated successfully. Token expires at: ${expirationDate}`);
       this.fetchDevices();
