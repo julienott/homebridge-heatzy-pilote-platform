@@ -33,7 +33,9 @@ export class Heatzy implements DynamicPlatformPlugin {
       });
 
       this.token = response.data.token;
-      this.tokenExpireAt = new Date().getTime() + 900000;  // token validity for 15 minutes
+      this.tokenExpireAt = response.data.expire_at;
+      const expirationDate = this.tokenExpireAt ? new Date(this.tokenExpireAt).toLocaleString() : 'Unknown';
+      this.log.debug(`Authenticated successfully. Token expires at: ${expirationDate}`);
       this.fetchDevices();
     } catch (error) {
       this.log.error('Error authenticating:', (error as Error).message);

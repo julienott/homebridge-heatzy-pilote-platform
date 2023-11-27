@@ -167,6 +167,7 @@ export class HeatzyAccessory {
       if (response.status === 200 && response.data && response.data.attr) {
         const apiMode = response.data.attr.mode;
         const currentMode = this.reverseModeMapping[apiMode] || 'Unknown';
+        this.platform.log.debug(`Successfully received state for '${this.accessory.displayName}': ${currentMode}`);
         return currentMode === this.mode;
       } else {
         throw new Error('Non-200 response or invalid data format');
