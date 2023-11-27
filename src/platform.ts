@@ -41,6 +41,9 @@ export class Heatzy implements DynamicPlatformPlugin {
   }
 
   async fetchDevices() {
+    if (this.needsAuthentication()) {
+      await this.authenticate();
+    }
     if (!this.token) {
       this.log.error('Token not available, unable to fetch devices');
       return;
@@ -155,6 +158,7 @@ export class Heatzy implements DynamicPlatformPlugin {
   }
 
   needsAuthentication(): boolean {
+    // Check if token is either not set or expired
     return !this.token || !this.tokenExpireAt || this.tokenExpireAt < Date.now();
   }
 }

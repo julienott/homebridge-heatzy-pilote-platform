@@ -163,6 +163,7 @@ export class HeatzyAccessory {
         },
       });
 
+
       if (response.status === 200 && response.data && response.data.attr) {
         const apiMode = response.data.attr.mode;
         const currentMode = this.reverseModeMapping[apiMode] || 'Unknown';
@@ -192,10 +193,14 @@ export class HeatzyAccessory {
     const randomInterval = () => Math.floor(Math.random() * 10000) + 5000; // Random additional interval between 5 to 10 seconds
 
     const poll = async () => {
-      this.platform.log.debug(`Scheduled API update request for '${this.accessory.displayName}'`);
-
-      const isOn = await this.getDeviceState();
-      this.service.updateCharacteristic(this.platform.api.hap.Characteristic.On, isOn);
+      try {
+        this.platform.log.debug(`Scheduled API update request for '${this.accessory.displayName}'`);
+        const isOn = await this.getDeviceState();
+        this.service.updateCharacteristic(this.platform.api.hap.Characteristic.On, isOn);
+      } catch (error) {
+        this.platform.log.error(`Error during polling for '${this.accessory.displayName}':`, error);
+        // Continue polling even in case of error
+      }
 
       // Schedule the next poll with a random additional interval
       setTimeout(poll, basePollingInterval + randomInterval());
