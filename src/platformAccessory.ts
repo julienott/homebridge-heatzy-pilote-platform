@@ -134,7 +134,7 @@ export class HeatzyAccessory {
 
     // Use info level for ON, debug level for OFF
     if (isOn) {
-      this.platform.log.info(`Current state of '${this.accessory.displayName}' determined as \u001b[32mOn\u001b[0m`);
+      this.platform.log.debug(`Current state of '${this.accessory.displayName}' determined as \u001b[32mOn\u001b[0m`);
     } else {
       this.platform.log.debug(`Current state of '${this.accessory.displayName}' determined as \u001b[31mOff\u001b[0m`);
     }
