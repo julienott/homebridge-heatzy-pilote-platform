@@ -52,7 +52,7 @@ export class Heatzy implements DynamicPlatformPlugin {
     }
 
     try {
-      const response = await axios.get('https://euapi.gizwits.com/app/bindings?limit=20&skip=0', {
+      const response = await axios.get('https://euapi.gizwits.com/app/bindings', {
         headers: {
           'Accept': 'application/json',
           'X-Gizwits-User-token': this.token,

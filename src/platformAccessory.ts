@@ -49,6 +49,7 @@ export class HeatzyAccessory {
     return this.mode;
   }
 
+
   private async fetchInitialState() {
     if (this.platform.needsAuthentication()) {
       await this.platform.authenticate();
@@ -89,6 +90,9 @@ export class HeatzyAccessory {
 
 
   async setOnCharacteristicHandler(value: CharacteristicValue, callback: Function) {
+    // Update HomeKit state immediately for user feedback
+    this.service.updateCharacteristic(this.platform.api.hap.Characteristic.On, value as boolean);
+
     if (this.platform.needsAuthentication()) {
       await this.platform.authenticate();
     }
@@ -106,18 +110,16 @@ export class HeatzyAccessory {
       });
 
       if (value) {
-        this.platform.updateDeviceState(this.device.did, this.mode);
         this.platform.notifyModeChange(this.device.did, this.mode);
       }
 
-      if (value) {
-        this.platform.log.info(`Changed '${this.accessory.displayName}' to \u001b[32mOn\u001b[0m`);
-      } else {
-        this.platform.log.info(`Changed '${this.accessory.displayName}' to \u001b[31mOff\u001b[0m`);
-      }
+      // Log the successful state change
+      this.platform.log.info(`Changed '${this.accessory.displayName}' to: ${value ? 'On' : 'Off'}`);
       callback(null); // No error
     } catch (error) {
       this.platform.log.error('Failed to set device state:', error);
+      // Revert HomeKit state in case of error
+      this.service.updateCharacteristic(this.platform.api.hap.Characteristic.On, !value as boolean);
       callback(error); // Pass error to callback
     }
   }
@@ -167,7 +169,10 @@ export class HeatzyAccessory {
       if (response.status === 200 && response.data && response.data.attr) {
         const apiMode = response.data.attr.mode;
         const currentMode = this.reverseModeMapping[apiMode] || 'Unknown';
+
+        // Add logging for successful state retrieval
         this.platform.log.debug(`Successfully received state for '${this.accessory.displayName}': ${currentMode}`);
+
         return currentMode === this.mode;
       } else {
         throw new Error('Non-200 response or invalid data format');
@@ -195,12 +200,15 @@ export class HeatzyAccessory {
 
     const poll = async () => {
       try {
-        this.platform.log.debug(`Scheduled API update request for '${this.accessory.displayName}'`);
+        // Add re-authentication logic if needed
+        if (this.platform.needsAuthentication()) {
+          await this.platform.authenticate();
+        }
+
         const isOn = await this.getDeviceState();
         this.service.updateCharacteristic(this.platform.api.hap.Characteristic.On, isOn);
       } catch (error) {
         this.platform.log.error(`Error during polling for '${this.accessory.displayName}':`, error);
-        // Continue polling even in case of error
       }
 
       // Schedule the next poll with a random additional interval
