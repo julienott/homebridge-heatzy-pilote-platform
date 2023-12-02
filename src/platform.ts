@@ -133,7 +133,7 @@ export class Heatzy implements DynamicPlatformPlugin {
   }
 
   notifyModeChange(did: string, activeMode: string) {
-    this.deviceStateCache[did] = { state: activeMode, timestamp: Date.now() };
+    this.setDeviceStateCache(did, activeMode);
 
     // Loop through all accessories and update their state
     this.accessories.forEach(accessory => {
@@ -153,6 +153,11 @@ export class Heatzy implements DynamicPlatformPlugin {
       return cachedState.state;
     }
     return null;
+  }
+
+  // Add a method to directly set the state in cache without fetching from API
+  setDeviceStateCache(did: string, newState: string) {
+    this.deviceStateCache[did] = { state: newState, timestamp: Date.now() };
   }
 
   getToken(): string | null {

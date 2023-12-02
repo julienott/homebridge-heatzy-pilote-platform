@@ -110,7 +110,12 @@ export class HeatzyAccessory {
       });
 
       if (value) {
+        // Update the cache immediately after the API call is successful
+        this.platform.setDeviceStateCache(this.device.did, this.mode);
         this.platform.notifyModeChange(this.device.did, this.mode);
+      } else {
+        // If turning off, update the cache to reflect the 'stop' state
+        this.platform.setDeviceStateCache(this.device.did, 'stop');
       }
 
       // Log the successful state change
