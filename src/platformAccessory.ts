@@ -175,9 +175,10 @@ export class HeatzyAccessory {
         const apiMode = response.data.attr.mode;
         const currentMode = this.reverseModeMapping[apiMode] || 'Unknown';
 
-        // Add logging for successful state retrieval
-        this.platform.log.debug(`Successfully received state for '${this.accessory.displayName}': ${currentMode}`);
+        // Update the cache with the API response
+        this.platform.setDeviceStateCache(this.device.did, currentMode);
 
+        this.platform.log.debug(`Successfully received state for '${this.accessory.displayName}': ${currentMode}`);
         return currentMode === this.mode;
       } else {
         throw new Error('Non-200 response or invalid data format');
