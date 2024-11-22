@@ -1,26 +1,85 @@
-import axios from 'axios';
-import { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig } from 'homebridge';
+import axios, { AxiosError } from 'axios';
+import { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service, Characteristic } from 'homebridge';
 import { HeatzyAccessory } from './platformAccessory';
+import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
 
-export class Heatzy implements DynamicPlatformPlugin {
+// Define interfaces for better type safety
+interface HeatzyConfig extends PlatformConfig {
+  username: string;
+  password: string;
+  modes?: string[];
+}
+
+interface HeatzyDevice {
+  did: string;
+  dev_alias: string;
+  [key: string]: any;
+}
+
+interface DeviceState {
+  state: string;
+  timestamp: number;
+}
+
+export class HeatzyPlatform implements DynamicPlatformPlugin {
+  public readonly Service: typeof Service;
+  public readonly Characteristic: typeof Characteristic;
+
   private readonly accessories: PlatformAccessory[] = [];
-  private readonly deviceStateCache: Record<string, { state: string; timestamp: number }> = {};
+  private readonly deviceStateCache: Record<string, DeviceState> = {};
   private readonly accessoryInstances: Map<string, HeatzyAccessory> = new Map();
   private token: string | null = null;
   private tokenExpireAt: number | null = null;
 
+  // API constants
+  private static readonly API_BASE_URL = 'https://euapi.gizwits.com';
+  private static readonly APPLICATION_ID = 'c70a66ff039d41b4a220e198b0fcc8b3';
+
   constructor(
     public readonly log: Logger,
-    public readonly config: PlatformConfig,
+    public readonly config: HeatzyConfig,
     public readonly api: API,
   ) {
-    this.log.info('Heatzy Plugin Finished Launching');
-    this.api.on('didFinishLaunching', () => this.authenticate());
+    // Save references to service and characteristic for use in accessories
+    this.Service = this.api.hap.Service;
+    this.Characteristic = this.api.hap.Characteristic;
+
+    // Validate configuration
+    if (!this.validateConfig()) {
+      return;
+    }
+
+    this.log.debug('Finished initializing platform:', this.config.name);
+
+    // When this event is fired, homebridge restored all cached accessories from disk
+    this.api.on('didFinishLaunching', () => {
+      this.log.debug('Executed didFinishLaunching callback');
+      this.authenticate().catch(error => {
+        this.log.error('Failed to authenticate during initialization:', error);
+      });
+    });
+  }
+
+  /**
+   * Validate the user config passed to the platform
+   */
+  private validateConfig(): boolean {
+    if (!this.config.username || !this.config.password) {
+      this.log.error('Missing required config: username and/or password');
+      return false;
+    }
+
+    if (!Array.isArray(this.config.modes)) {
+      this.log.warn('No modes specified in config, using default modes');
+      this.config.modes = ['Confort', 'Eco']; // Set default modes
+    }
+
+    return true;
   }
 
   async authenticate() {
     try {
-      const response = await axios.post('https://euapi.gizwits.com/app/login', {
+      const response = await axios.post(`${HeatzyPlatform.API_BASE_URL}/app/login`, {
         username: this.config.username,
         password: this.config.password,
         lang: 'en',
@@ -28,17 +87,24 @@ export class Heatzy implements DynamicPlatformPlugin {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-Gizwits-Application-Id': 'c70a66ff039d41b4a220e198b0fcc8b3',
+          'X-Gizwits-Application-Id': HeatzyPlatform.APPLICATION_ID,
         },
       });
-      this.log.debug('Authentication response:', response.data);
+
       this.token = response.data.token;
       this.tokenExpireAt = response.data.expire_at * 1000;
+
       const expirationDate = this.tokenExpireAt ? new Date(this.tokenExpireAt).toLocaleString() : 'Unknown';
       this.log.debug(`Authenticated successfully. Token expires at: ${expirationDate}`);
       this.fetchDevices();
     } catch (error) {
-      this.log.error('Error authenticating:', (error as Error).message);
+      if (error instanceof AxiosError) {
+        this.log.error('Authentication failed:', error.message);
+        this.log.debug('Error details:', error.response?.data);
+      } else {
+        this.log.error('Unexpected error during authentication:', error);
+      }
+      throw error;
     }
   }
 
@@ -46,21 +112,22 @@ export class Heatzy implements DynamicPlatformPlugin {
     if (this.needsAuthentication()) {
       await this.authenticate();
     }
+
     if (!this.token) {
       this.log.error('Token not available, unable to fetch devices');
       return;
     }
 
     try {
-      const response = await axios.get('https://euapi.gizwits.com/app/bindings', {
+      const response = await axios.get(`${HeatzyPlatform.API_BASE_URL}/app/bindings`, {
         headers: {
           'Accept': 'application/json',
           'X-Gizwits-User-token': this.token,
-          'X-Gizwits-Application-Id': 'c70a66ff039d41b4a220e198b0fcc8b3',
+          'X-Gizwits-Application-Id': HeatzyPlatform.APPLICATION_ID,
         },
       });
 
-      const devices = response.data.devices;
+      const devices = response.data.devices as HeatzyDevice[];
       const selectedModes = this.config.modes || [];
 
       // Additional code to list device names
@@ -72,7 +139,7 @@ export class Heatzy implements DynamicPlatformPlugin {
 
         if (!isDeviceFetched || !isModeSelected) {
           this.log.info('Removing unused accessory:', accessory.displayName);
-          this.api.unregisterPlatformAccessories('homebridge-heatzy-pilote-platform', 'Heatzy', [accessory]);
+          this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
         }
       });
 
@@ -84,12 +151,16 @@ export class Heatzy implements DynamicPlatformPlugin {
 
       this.log.info(`Fetched devices: ${devices.length} [${deviceNames}]`);
     } catch (error) {
-      this.log.error('Error fetching devices:', (error as Error).message);
+      if (error instanceof AxiosError) {
+        this.log.error('Error fetching devices:', error.message);
+        this.log.debug('Error details:', error.response?.data);
+      } else {
+        this.log.error('Unexpected error fetching devices:', error);
+      }
     }
   }
 
-
-  addAccessory(device: any, mode: string) {
+  addAccessory(device: HeatzyDevice, mode: string) {
     const uniqueId = device.did + ' ' + mode;
     const uuid = this.api.hap.uuid.generate(uniqueId);
     const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
@@ -109,7 +180,7 @@ export class Heatzy implements DynamicPlatformPlugin {
       accessory.context.mode = mode;
       const accessoryInstance = new HeatzyAccessory(this, accessory, device, mode);
       this.accessoryInstances.set(accessory.UUID, accessoryInstance);
-      this.api.registerPlatformAccessories('homebridge-heatzy-pilote-platform', 'Heatzy', [accessory]);
+      this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
       this.accessories.push(accessory);
     }
   }
@@ -155,7 +226,6 @@ export class Heatzy implements DynamicPlatformPlugin {
     return null;
   }
 
-  // Add a method to directly set the state in cache without fetching from API
   setDeviceStateCache(did: string, newState: string) {
     this.deviceStateCache[did] = { state: newState, timestamp: Date.now() };
   }
@@ -165,7 +235,6 @@ export class Heatzy implements DynamicPlatformPlugin {
   }
 
   needsAuthentication(): boolean {
-    // Check if token is either not set or expired
     return !this.token || !this.tokenExpireAt || this.tokenExpireAt < Date.now();
   }
 }
