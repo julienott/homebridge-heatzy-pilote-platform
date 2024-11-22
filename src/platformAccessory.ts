@@ -138,6 +138,18 @@ export class HeatzyAccessory {
   }
 
   async getOnCharacteristicHandler(callback: Function) {
+    let callbackInvoked = false;
+
+    // Wrap the callback to ensure it is called only once
+    const safeCallback = (error: any, value?: any) => {
+      if (!callbackInvoked) {
+        callbackInvoked = true;
+        callback(error, value);
+      } else {
+        this.platform.log.error(`Callback already called for '${this.accessory.displayName}'`);
+      }
+    };
+
     this.platform.log.debug(`HomeKit is requesting the current state of '${this.accessory.displayName}'`);
 
     try {
@@ -156,13 +168,13 @@ export class HeatzyAccessory {
         this.platform.log.debug(`Current state of '${this.accessory.displayName}' determined as Off`);
       }
 
-      // Call the callback once with the state
-      callback(null, isOn);
+      // Call the callback with the determined state
+      safeCallback(null, isOn);
     } catch (error) {
       this.platform.log.error(`Error determining state of '${this.accessory.displayName}':`, error);
 
-      // Call the callback once with an error
-      callback(error);
+      // Call the callback with an error
+      safeCallback(error);
     }
   }
 
