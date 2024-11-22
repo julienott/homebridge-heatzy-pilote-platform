@@ -95,6 +95,7 @@ export class Heatzy implements DynamicPlatformPlugin {
 
       devices.forEach(device => {
         selectedModes.forEach(mode => {
+          this.log.debug(`Processing accessory '${device.dev_alias}' with mode '${mode}'`);
           this.addAccessory(device, mode);
         });
       });
@@ -117,6 +118,13 @@ export class Heatzy implements DynamicPlatformPlugin {
 
     if (existingAccessory) {
       this.log.debug('Restoring existing accessory from cache:', existingAccessory.displayName);
+
+      // Avoid reinitializing if already configured
+      if (existingAccessory.context.device === device && existingAccessory.context.mode === mode) {
+        this.log.debug(`Accessory '${existingAccessory.displayName}' already initialized.`);
+        return;
+      }
+
       existingAccessory.context.device = device;
       existingAccessory.context.mode = mode;
       const accessoryInstance = new HeatzyAccessory(this, existingAccessory, device, mode);

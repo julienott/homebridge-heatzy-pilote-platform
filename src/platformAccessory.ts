@@ -31,24 +31,23 @@ export class HeatzyAccessory {
     mode: string,
   ) {
     this.mode = mode;
-    if (this.service.testCharacteristic(this.platform.api.hap.Characteristic.On)) {
-      this.platform.log.warn(`Duplicate initialization detected for '${accessory.displayName}'`);
-    }
     this.platform.log.info('Initializing accessory:', accessory.displayName);
+
+    // Initialize the service before using it
     this.service = this.accessory.getService(this.platform.api.hap.Service.Switch) ||
                    this.accessory.addService(this.platform.api.hap.Service.Switch, accessory.displayName);
 
+    // Check for duplicate characteristics
+    if (this.service.testCharacteristic(this.platform.api.hap.Characteristic.On)) {
+      this.platform.log.warn(`Duplicate initialization detected for '${accessory.displayName}'`);
+    }
+
+    // Set up characteristic handlers
     this.service.getCharacteristic(this.platform.api.hap.Characteristic.On)
-      .on('get', callback => {
-        const promise = this.getOnCharacteristicHandler(callback);
+      .on('set', (value, callback) => this.setOnCharacteristicHandler(value, callback))
+      .on('get', callback => this.getOnCharacteristicHandler(callback));
 
-        if (promise instanceof Promise) {
-          promise.catch(error => {
-            this.platform.log.error(`Unhandled promise rejection for '${this.accessory.displayName}':`, error);
-          });
-        }
-      });
-
+    // Fetch initial state
     this.fetchInitialState();
     this.startPolling();
   }
@@ -149,7 +148,6 @@ export class HeatzyAccessory {
   async getOnCharacteristicHandler(callback: Function) {
     let callbackInvoked = false;
 
-    // Wrap the callback to ensure it is called only once
     const safeCallback = (error: any, value?: any) => {
       if (!callbackInvoked) {
         callbackInvoked = true;
@@ -160,22 +158,22 @@ export class HeatzyAccessory {
       }
     };
 
-    this.platform.log.debug(`HomeKit is requesting the current state of '${this.accessory.displayName}'`);
-
     try {
+      // Ensure authentication is checked only once
       if (this.platform.needsAuthentication()) {
-        this.platform.log.debug(`Re-authenticating for '${this.accessory.displayName}'`);
         await this.platform.authenticate();
       }
 
       const currentState = this.platform.getDeviceState(this.device.did);
       const isOn = currentState === this.mode;
 
-      this.platform.log.debug(`State for '${this.accessory.displayName}': ${isOn ? 'On' : 'Off'}`);
+      // Call the callback with the determined state
       safeCallback(null, isOn);
     } catch (error) {
       this.platform.log.error(`Error determining state for '${this.accessory.displayName}':`, error);
-      safeCallback(error); // Ensure callback is only invoked here
+
+      // Ensure callback is invoked even on error
+      safeCallback(error);
     }
   }
 
