@@ -140,20 +140,30 @@ export class HeatzyAccessory {
   async getOnCharacteristicHandler(callback: Function) {
     this.platform.log.debug(`HomeKit is requesting the current state of '${this.accessory.displayName}'`);
 
-    if (this.platform.needsAuthentication()) {
-      await this.platform.authenticate();
-    }
+    try {
+      // Re-authenticate if needed
+      if (this.platform.needsAuthentication()) {
+        await this.platform.authenticate();
+      }
 
-    const currentState = this.platform.getDeviceState(this.device.did);
-    const isOn = currentState === this.mode;
+      const currentState = this.platform.getDeviceState(this.device.did);
+      const isOn = currentState === this.mode;
 
-    // Use info level for ON, debug level for OFF
-    if (isOn) {
-      this.platform.log.debug(`Current state of '${this.accessory.displayName}' determined as \u001b[32mOn\u001b[0m`);
-    } else {
-      this.platform.log.debug(`Current state of '${this.accessory.displayName}' determined as \u001b[31mOff\u001b[0m`);
+      // Log state determination
+      if (isOn) {
+        this.platform.log.debug(`Current state of '${this.accessory.displayName}' determined as On`);
+      } else {
+        this.platform.log.debug(`Current state of '${this.accessory.displayName}' determined as Off`);
+      }
+
+      // Call the callback once with the state
+      callback(null, isOn);
+    } catch (error) {
+      this.platform.log.error(`Error determining state of '${this.accessory.displayName}':`, error);
+
+      // Call the callback once with an error
+      callback(error);
     }
-    callback(null, isOn);
   }
 
   updateState(activeMode: string) {
