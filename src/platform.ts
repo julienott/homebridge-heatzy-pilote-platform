@@ -5,8 +5,8 @@ import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
 
 // Define interfaces for better type safety
 interface HeatzyConfig extends PlatformConfig {
-  username: string;
-  password: string;
+  username?: string;
+  password?: string;
   modes?: string[];
 }
 
@@ -96,7 +96,7 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
 
       const expirationDate = this.tokenExpireAt ? new Date(this.tokenExpireAt).toLocaleString() : 'Unknown';
       this.log.debug(`Authenticated successfully. Token expires at: ${expirationDate}`);
-      this.fetchDevices();
+      await this.fetchDevices();
     } catch (error) {
       if (error instanceof AxiosError) {
         this.log.error('Authentication failed:', error.message);
@@ -133,16 +133,23 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
       // Additional code to list device names
       const deviceNames = devices.map(device => device.dev_alias || 'Unnamed Device').join(', ');
 
-      this.accessories.forEach(accessory => {
+      // Handle removed devices
+      const existingAccessories = [...this.accessories];
+      existingAccessories.forEach(accessory => {
         const isDeviceFetched = devices.some(device => accessory.context.device.did === device.did);
         const isModeSelected = selectedModes.includes(accessory.context.mode);
 
         if (!isDeviceFetched || !isModeSelected) {
+          const removedAccessoryIndex = this.accessories.indexOf(accessory);
+          if (removedAccessoryIndex !== -1) {
+            this.accessories.splice(removedAccessoryIndex, 1);
+          }
           this.log.info('Removing unused accessory:', accessory.displayName);
           this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
         }
       });
 
+      // Add or update devices
       devices.forEach(device => {
         selectedModes.forEach(mode => {
           this.addAccessory(device, mode);
