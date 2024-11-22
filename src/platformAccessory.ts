@@ -31,14 +31,23 @@ export class HeatzyAccessory {
     mode: string,
   ) {
     this.mode = mode;
+    if (this.service.testCharacteristic(this.platform.api.hap.Characteristic.On)) {
+      this.platform.log.warn(`Duplicate initialization detected for '${accessory.displayName}'`);
+    }
     this.platform.log.info('Initializing accessory:', accessory.displayName);
-
     this.service = this.accessory.getService(this.platform.api.hap.Service.Switch) ||
                    this.accessory.addService(this.platform.api.hap.Service.Switch, accessory.displayName);
 
     this.service.getCharacteristic(this.platform.api.hap.Characteristic.On)
-      .on('set', (value, callback) => this.setOnCharacteristicHandler(value, callback))
-      .on('get', callback => this.getOnCharacteristicHandler(callback));
+      .on('get', callback => {
+        const promise = this.getOnCharacteristicHandler(callback);
+
+        if (promise instanceof Promise) {
+          promise.catch(error => {
+            this.platform.log.error(`Unhandled promise rejection for '${this.accessory.displayName}':`, error);
+          });
+        }
+      });
 
     this.fetchInitialState();
     this.startPolling();
@@ -144,6 +153,7 @@ export class HeatzyAccessory {
     const safeCallback = (error: any, value?: any) => {
       if (!callbackInvoked) {
         callbackInvoked = true;
+        this.platform.log.debug(`Invoking callback for '${this.accessory.displayName}'`);
         callback(error, value);
       } else {
         this.platform.log.error(`Callback already called for '${this.accessory.displayName}'`);
@@ -153,28 +163,19 @@ export class HeatzyAccessory {
     this.platform.log.debug(`HomeKit is requesting the current state of '${this.accessory.displayName}'`);
 
     try {
-      // Re-authenticate if needed
       if (this.platform.needsAuthentication()) {
+        this.platform.log.debug(`Re-authenticating for '${this.accessory.displayName}'`);
         await this.platform.authenticate();
       }
 
       const currentState = this.platform.getDeviceState(this.device.did);
       const isOn = currentState === this.mode;
 
-      // Log state determination
-      if (isOn) {
-        this.platform.log.debug(`Current state of '${this.accessory.displayName}' determined as On`);
-      } else {
-        this.platform.log.debug(`Current state of '${this.accessory.displayName}' determined as Off`);
-      }
-
-      // Call the callback with the determined state
+      this.platform.log.debug(`State for '${this.accessory.displayName}': ${isOn ? 'On' : 'Off'}`);
       safeCallback(null, isOn);
     } catch (error) {
-      this.platform.log.error(`Error determining state of '${this.accessory.displayName}':`, error);
-
-      // Call the callback with an error
-      safeCallback(error);
+      this.platform.log.error(`Error determining state for '${this.accessory.displayName}':`, error);
+      safeCallback(error); // Ensure callback is only invoked here
     }
   }
 
