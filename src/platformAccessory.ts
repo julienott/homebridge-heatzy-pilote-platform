@@ -84,7 +84,11 @@ export class HeatzyAccessory {
         throw new Error('Invalid response format');
       }
     } catch (error) {
-      this.platform.log.error(`Failed to fetch initial state for '${this.accessory.displayName}':`, error);
+      if (error instanceof Error) {
+        this.platform.log.error(`Failed to fetch initial state for '${this.accessory.displayName}': ${error.message}`);
+      } else {
+        this.platform.log.error(`Unknown error fetching initial state for '${this.accessory.displayName}':`, error);
+      }
     }
   }
 
@@ -122,7 +126,11 @@ export class HeatzyAccessory {
       this.platform.log.info(`Changed '${this.accessory.displayName}' to: ${value ? 'On' : 'Off'}`);
       callback(null); // No error
     } catch (error) {
-      this.platform.log.error('Failed to set device state:', error);
+      if (error instanceof Error) {
+        this.platform.log.error('Failed to set device state:', error.message);
+      } else {
+        this.platform.log.error('Unknown error setting device state:', error);
+      }
       // Revert HomeKit state in case of error
       this.service.updateCharacteristic(this.platform.api.hap.Characteristic.On, !value as boolean);
       callback(error); // Pass error to callback
@@ -184,17 +192,15 @@ export class HeatzyAccessory {
         throw new Error('Non-200 response or invalid data format');
       }
     } catch (error) {
-      if (axios.isAxiosError(error) && error.response) {
-        // Log only the status code for normal operation
-        this.platform.log.error(`Error getting device state for '${this.accessory.displayName}', Status Code: ${error.response.status}`);
-        // More verbose log for debugging
-        this.platform.log.debug('Error details:', error);
+      if (axios.isAxiosError(error)) {
+        this.platform.log.error(`Axios error getting device state for '${this.accessory.displayName}': ${error.message}`);
+        if (error.response) {
+          this.platform.log.debug(`Response data: ${JSON.stringify(error.response.data)}`);
+        }
       } else if (error instanceof Error) {
-        // General error logging for non-Axios errors
-        this.platform.log.error(`Error getting device state for '${this.accessory.displayName}':`, error.message);
+        this.platform.log.error(`General error getting device state for '${this.accessory.displayName}': ${error.message}`);
       } else {
-        // Fallback for when error is not an Error instance
-        this.platform.log.error(`Error getting device state for '${this.accessory.displayName}', but the error type is unknown.`);
+        this.platform.log.error(`Unknown error getting device state for '${this.accessory.displayName}':`, error);
       }
       return false;
     }
@@ -214,7 +220,11 @@ export class HeatzyAccessory {
         const isOn = await this.getDeviceState();
         this.service.updateCharacteristic(this.platform.api.hap.Characteristic.On, isOn);
       } catch (error) {
-        this.platform.log.error(`Error during polling for '${this.accessory.displayName}':`, error);
+        if (error instanceof Error) {
+          this.platform.log.error(`Error during polling for '${this.accessory.displayName}': ${error.message}`);
+        } else {
+          this.platform.log.error(`Unknown error during polling for '${this.accessory.displayName}':`, error);
+        }
       }
 
       // Schedule the next poll with a random additional interval

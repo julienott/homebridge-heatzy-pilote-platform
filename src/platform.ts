@@ -15,7 +15,20 @@ export class Heatzy implements DynamicPlatformPlugin {
     public readonly api: API,
   ) {
     this.log.info('Heatzy Plugin Finished Launching');
-    this.api.on('didFinishLaunching', () => this.authenticate());
+    this.api.on('didFinishLaunching', async () => {
+      try {
+        this.log.info('Starting authentication process...');
+        await this.authenticate();
+        this.log.info('Fetching devices...');
+        await this.fetchDevices();
+      } catch (error) {
+        if (error instanceof Error) {
+          this.log.error('Error during launch sequence:', error.message);
+        } else {
+          this.log.error('Unknown error during launch sequence:', error);
+        }
+      }
+    });
   }
 
   async authenticate() {
@@ -38,7 +51,11 @@ export class Heatzy implements DynamicPlatformPlugin {
       this.log.debug(`Authenticated successfully. Token expires at: ${expirationDate}`);
       this.fetchDevices();
     } catch (error) {
-      this.log.error('Error authenticating:', (error as Error).message);
+      if (error instanceof Error) {
+        this.log.error('Error authenticating:', error.message);
+      } else {
+        this.log.error('Unknown error during authentication:', error);
+      }
     }
   }
 
@@ -84,7 +101,11 @@ export class Heatzy implements DynamicPlatformPlugin {
 
       this.log.info(`Fetched devices: ${devices.length} [${deviceNames}]`);
     } catch (error) {
-      this.log.error('Error fetching devices:', (error as Error).message);
+      if (error instanceof Error) {
+        this.log.error('Error fetching devices:', error.message);
+      } else {
+        this.log.error('Unknown error fetching devices:', error);
+      }
     }
   }
 
