@@ -33,21 +33,13 @@ export class HeatzyAccessory {
     this.mode = mode;
     this.platform.log.info('Initializing accessory:', accessory.displayName);
 
-    // Initialize the service before using it
     this.service = this.accessory.getService(this.platform.api.hap.Service.Switch) ||
                    this.accessory.addService(this.platform.api.hap.Service.Switch, accessory.displayName);
 
-    // Check for duplicate characteristics
-    if (this.service.testCharacteristic(this.platform.api.hap.Characteristic.On)) {
-      this.platform.log.warn(`Duplicate initialization detected for '${accessory.displayName}'`);
-    }
-
-    // Set up characteristic handlers
     this.service.getCharacteristic(this.platform.api.hap.Characteristic.On)
       .on('set', (value, callback) => this.setOnCharacteristicHandler(value, callback))
       .on('get', callback => this.getOnCharacteristicHandler(callback));
 
-    // Fetch initial state
     this.fetchInitialState();
     this.startPolling();
   }
@@ -92,11 +84,7 @@ export class HeatzyAccessory {
         throw new Error('Invalid response format');
       }
     } catch (error) {
-      if (error instanceof Error) {
-        this.platform.log.error(`Failed to fetch initial state for '${this.accessory.displayName}': ${error.message}`);
-      } else {
-        this.platform.log.error(`Unknown error fetching initial state for '${this.accessory.displayName}':`, error);
-      }
+      this.platform.log.error(`Failed to fetch initial state for '${this.accessory.displayName}':`, error);
     }
   }
 
@@ -134,11 +122,7 @@ export class HeatzyAccessory {
       this.platform.log.info(`Changed '${this.accessory.displayName}' to: ${value ? 'On' : 'Off'}`);
       callback(null); // No error
     } catch (error) {
-      if (error instanceof Error) {
-        this.platform.log.error('Failed to set device state:', error.message);
-      } else {
-        this.platform.log.error('Unknown error setting device state:', error);
-      }
+      this.platform.log.error('Failed to set device state:', error);
       // Revert HomeKit state in case of error
       this.service.updateCharacteristic(this.platform.api.hap.Characteristic.On, !value as boolean);
       callback(error); // Pass error to callback
@@ -146,35 +130,22 @@ export class HeatzyAccessory {
   }
 
   async getOnCharacteristicHandler(callback: Function) {
-    let callbackInvoked = false;
+    this.platform.log.debug(`HomeKit is requesting the current state of '${this.accessory.displayName}'`);
 
-    const safeCallback = (error: any, value?: any) => {
-      if (!callbackInvoked) {
-        callbackInvoked = true;
-        this.platform.log.debug(`Invoking callback for '${this.accessory.displayName}'`);
-        callback(error, value);
-      } else {
-        this.platform.log.error(`Callback already called for '${this.accessory.displayName}'`);
-      }
-    };
-
-    try {
-      // Ensure authentication is checked only once
-      if (this.platform.needsAuthentication()) {
-        await this.platform.authenticate();
-      }
-
-      const currentState = this.platform.getDeviceState(this.device.did);
-      const isOn = currentState === this.mode;
-
-      // Call the callback with the determined state
-      safeCallback(null, isOn);
-    } catch (error) {
-      this.platform.log.error(`Error determining state for '${this.accessory.displayName}':`, error);
-
-      // Ensure callback is invoked even on error
-      safeCallback(error);
+    if (this.platform.needsAuthentication()) {
+      await this.platform.authenticate();
     }
+
+    const currentState = this.platform.getDeviceState(this.device.did);
+    const isOn = currentState === this.mode;
+
+    // Use info level for ON, debug level for OFF
+    if (isOn) {
+      this.platform.log.debug(`Current state of '${this.accessory.displayName}' determined as \u001b[32mOn\u001b[0m`);
+    } else {
+      this.platform.log.debug(`Current state of '${this.accessory.displayName}' determined as \u001b[31mOff\u001b[0m`);
+    }
+    callback(null, isOn);
   }
 
   updateState(activeMode: string) {
@@ -213,15 +184,17 @@ export class HeatzyAccessory {
         throw new Error('Non-200 response or invalid data format');
       }
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        this.platform.log.error(`Axios error getting device state for '${this.accessory.displayName}': ${error.message}`);
-        if (error.response) {
-          this.platform.log.debug(`Response data: ${JSON.stringify(error.response.data)}`);
-        }
+      if (axios.isAxiosError(error) && error.response) {
+        // Log only the status code for normal operation
+        this.platform.log.error(`Error getting device state for '${this.accessory.displayName}', Status Code: ${error.response.status}`);
+        // More verbose log for debugging
+        this.platform.log.debug('Error details:', error);
       } else if (error instanceof Error) {
-        this.platform.log.error(`General error getting device state for '${this.accessory.displayName}': ${error.message}`);
+        // General error logging for non-Axios errors
+        this.platform.log.error(`Error getting device state for '${this.accessory.displayName}':`, error.message);
       } else {
-        this.platform.log.error(`Unknown error getting device state for '${this.accessory.displayName}':`, error);
+        // Fallback for when error is not an Error instance
+        this.platform.log.error(`Error getting device state for '${this.accessory.displayName}', but the error type is unknown.`);
       }
       return false;
     }
@@ -241,11 +214,7 @@ export class HeatzyAccessory {
         const isOn = await this.getDeviceState();
         this.service.updateCharacteristic(this.platform.api.hap.Characteristic.On, isOn);
       } catch (error) {
-        if (error instanceof Error) {
-          this.platform.log.error(`Error during polling for '${this.accessory.displayName}': ${error.message}`);
-        } else {
-          this.platform.log.error(`Unknown error during polling for '${this.accessory.displayName}':`, error);
-        }
+        this.platform.log.error(`Error during polling for '${this.accessory.displayName}':`, error);
       }
 
       // Schedule the next poll with a random additional interval
