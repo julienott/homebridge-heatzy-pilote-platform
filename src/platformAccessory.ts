@@ -1,11 +1,23 @@
-import { PlatformAccessory, Service, CharacteristicValue } from 'homebridge';
 import axios, { AxiosError } from 'axios';
-import { HeatzyPlatform } from './platform';
+import {
+  PlatformAccessory,
+  Service,
+  CharacteristicValue,
+} from 'homebridge';
+import { HeatzyPlatform } from './platform.js';
+
+interface HeatzyDeviceData {
+  did: string;
+  dev_alias: string;
+  product_name?: string;
+  mac?: string;
+  is_online?: boolean;
+}
 
 interface HeatzyDeviceResponse {
   attr: {
     mode: string;
-    [key: string]: any;
+    [key: string]: string;
   };
 }
 
@@ -36,14 +48,17 @@ export class HeatzyAccessory {
   constructor(
     private readonly platform: HeatzyPlatform,
     private readonly accessory: PlatformAccessory,
-    private readonly device: any,
+    private readonly device: HeatzyDeviceData,
     mode: string,
   ) {
     this.mode = mode;
     this.platform.log.info('Initializing accessory:', accessory.displayName);
 
     this.service = this.accessory.getService(this.platform.Service.Switch) ||
-                   this.accessory.addService(this.platform.Service.Switch, accessory.displayName);
+      this.accessory.addService(
+        this.platform.Service.Switch,
+        accessory.displayName
+      );
 
     this.service.getCharacteristic(this.platform.Characteristic.On)
       .onSet(this.setOnCharacteristicHandler.bind(this))
@@ -76,12 +91,13 @@ export class HeatzyAccessory {
         const apiMode = response.data.attr.mode;
         const currentMode = this.reverseModeMapping[apiMode as keyof typeof this.reverseModeMapping] || 'Unknown';
         const isOn = currentMode === this.mode;
-
+        
         this.service.updateCharacteristic(this.platform.Characteristic.On, isOn);
         this.platform.updateDeviceState(this.device.did, currentMode, true);
 
         const stateText = isOn ? '\u001b[32mOn\u001b[0m' : '\u001b[31mOff\u001b[0m';
-        this.platform.log[isOn ? 'info' : 'debug'](`Initialized '${this.accessory.displayName}' with state: ${stateText}`);
+        const logMessage = `Initialized '${this.accessory.displayName}' with state: ${stateText}`;
+        this.platform.log[isOn ? 'info' : 'debug'](logMessage);
       }
     } catch (error) {
       this.handleError('Failed to fetch initial state', error);
@@ -123,14 +139,18 @@ export class HeatzyAccessory {
   }
 
   private async getOnCharacteristicHandler(): Promise<boolean> {
-    this.platform.log.debug(`HomeKit is requesting the current state of '${this.accessory.displayName}'`);
+    this.platform.log.debug(
+      `HomeKit is requesting the current state of '${this.accessory.displayName}'`
+    );
 
     const currentState = this.platform.getDeviceState(this.device.did);
     const isOn = currentState === this.mode;
 
     const stateText = isOn ? '\u001b[32mOn\u001b[0m' : '\u001b[31mOff\u001b[0m';
-    this.platform.log.debug(`Current state of '${this.accessory.displayName}' determined as ${stateText}`);
-
+    this.platform.log.debug(
+      `Current state of '${this.accessory.displayName}' determined as ${stateText}`
+    );
+    
     return isOn;
   }
 
@@ -161,7 +181,7 @@ export class HeatzyAccessory {
         this.platform.log.debug(`Successfully received state for '${this.accessory.displayName}': ${currentMode}`);
         return currentMode === this.mode;
       }
-
+      
       throw new Error('Invalid response format');
     } catch (error) {
       this.handleError('Error getting device state', error);

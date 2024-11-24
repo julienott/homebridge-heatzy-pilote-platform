@@ -2,6 +2,7 @@
   "displayName": "Heatzy for Homebridge",
   "name": "homebridge-heatzy-pilote-platform",
   "version": "2.0.1",
+  "type": "module",
   "description": "Use Heatzy modules with Homebridge as switches",
   "license": "Apache-2.0",
   "repository": {
@@ -29,10 +30,11 @@
     "thermostat"
   ],
   "dependencies": {
-    "axios": "^1.6.7"
+    "axios": "^1.6.7",
+    "homebridge-plugin-utils": "^1.10.2"
   },
   "devDependencies": {
-    "@eslint/js": "^9.15.0",
+    "@eslint/js": "^9.14.0",
     "@types/eslint__js": "^8.42.3",
     "@types/node": "^22.8.6",
     "eslint": "^9.14.0",
@@ -40,7 +42,7 @@
     "nodemon": "^3.1.7",
     "rimraf": "^6.0.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5.6.3",
+    "typescript": "5.6.2",
     "typescript-eslint": "^8.12.2"
   },
   "icon": "logo.png"

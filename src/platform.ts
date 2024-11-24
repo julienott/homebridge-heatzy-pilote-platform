@@ -1,9 +1,16 @@
 import axios, { AxiosError } from 'axios';
-import { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service, Characteristic } from 'homebridge';
-import { HeatzyAccessory } from './platformAccessory';
-import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
+import {
+  API,
+  DynamicPlatformPlugin,
+  Logger,
+  PlatformAccessory,
+  PlatformConfig,
+  Service,
+  Characteristic,
+} from 'homebridge';
+import { HeatzyAccessory } from './platformAccessory.js';
+import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
 
-// Define interfaces for better type safety
 interface HeatzyConfig extends PlatformConfig {
   username?: string;
   password?: string;
@@ -13,7 +20,9 @@ interface HeatzyConfig extends PlatformConfig {
 interface HeatzyDevice {
   did: string;
   dev_alias: string;
-  [key: string]: any;
+  product_name?: string;
+  mac?: string;
+  is_online?: boolean;
 }
 
 interface DeviceState {
@@ -60,9 +69,6 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
     });
   }
 
-  /**
-   * Validate the user config passed to the platform
-   */
   private validateConfig(): boolean {
     if (!this.config.username || !this.config.password) {
       this.log.error('Missing required config: username and/or password');
@@ -71,13 +77,13 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
 
     if (!Array.isArray(this.config.modes)) {
       this.log.warn('No modes specified in config, using default modes');
-      this.config.modes = ['Confort', 'Eco']; // Set default modes
+      this.config.modes = ['Confort', 'Eco'];
     }
 
     return true;
   }
 
-  async authenticate() {
+  async authenticate(): Promise<void> {
     try {
       const response = await axios.post(`${HeatzyPlatform.API_BASE_URL}/app/login`, {
         username: this.config.username,
@@ -108,7 +114,7 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
     }
   }
 
-  async fetchDevices() {
+  async fetchDevices(): Promise<void> {
     if (this.needsAuthentication()) {
       await this.authenticate();
     }
@@ -167,7 +173,7 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
     }
   }
 
-  addAccessory(device: HeatzyDevice, mode: string) {
+  addAccessory(device: HeatzyDevice, mode: string): void {
     const uniqueId = device.did + ' ' + mode;
     const uuid = this.api.hap.uuid.generate(uniqueId);
     const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
@@ -197,9 +203,9 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
     this.accessories.push(accessory);
   }
 
-  updateDeviceState(did: string, activeMode: string, forceUpdate = false) {
+  updateDeviceState(did: string, activeMode: string, forceUpdate = false): void {
     const cachedState = this.deviceStateCache[did];
-    if (!cachedState || forceUpdate || cachedState.timestamp < Date.now() - 60000) { // 60 seconds threshold
+    if (!cachedState || forceUpdate || cachedState.timestamp < Date.now() - 60000) {
       this.deviceStateCache[did] = { state: activeMode, timestamp: Date.now() };
       this.accessories.forEach(accessory => {
         if (accessory.context.device.did === did) {
@@ -210,15 +216,14 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
     }
   }
 
-  notifyModeChange(did: string, activeMode: string) {
+  notifyModeChange(did: string, activeMode: string): void {
     this.setDeviceStateCache(did, activeMode);
 
-    // Loop through all accessories and update their state
     this.accessories.forEach(accessory => {
       if (accessory.context.device.did === did) {
         const accessoryInstance = this.accessoryInstances.get(accessory.UUID);
         if (accessoryInstance && accessoryInstance.getMode() !== activeMode) {
-          accessoryInstance.updateState('off'); // Set other modes to off
+          accessoryInstance.updateState('off');
         }
       }
     });
@@ -233,7 +238,7 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
     return null;
   }
 
-  setDeviceStateCache(did: string, newState: string) {
+  setDeviceStateCache(did: string, newState: string): void {
     this.deviceStateCache[did] = { state: newState, timestamp: Date.now() };
   }
 
