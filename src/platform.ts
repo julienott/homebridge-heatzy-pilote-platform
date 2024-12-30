@@ -15,6 +15,7 @@ interface HeatzyConfig extends PlatformConfig {
   username?: string;
   password?: string;
   modes?: string[];
+  lockThermostats?: boolean;
 }
 
 interface HeatzyDevice {
@@ -40,7 +41,6 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
   private token: string | null = null;
   private tokenExpireAt: number | null = null;
 
-  // API constants
   private static readonly API_BASE_URL = 'https://euapi.gizwits.com';
   private static readonly APPLICATION_ID = 'c70a66ff039d41b4a220e198b0fcc8b3';
 
@@ -52,7 +52,6 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
     // Save references to service and characteristic for use in accessories
     this.Service = this.api.hap.Service;
     this.Characteristic = this.api.hap.Characteristic;
-
     // Validate configuration
     if (!this.validateConfig()) {
       return;
@@ -61,6 +60,7 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
     this.log.debug('Finished initializing platform:', this.config.name);
 
     // When this event is fired, homebridge restored all cached accessories from disk
+
     this.api.on('didFinishLaunching', () => {
       this.log.debug('Executed didFinishLaunching callback');
       this.authenticate().catch(error => {
@@ -78,6 +78,10 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
     if (!Array.isArray(this.config.modes)) {
       this.log.warn('No modes specified in config, using default modes');
       this.config.modes = ['Confort', 'Eco'];
+    }
+
+    if (this.config.lockThermostats) {
+      this.log.info('Thermostat locking is enabled');
     }
 
     return true;
