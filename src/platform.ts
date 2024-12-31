@@ -12,9 +12,9 @@ import { HeatzyAccessory } from './platformAccessory.js';
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
 
 interface HeatzyConfig extends PlatformConfig {
-  credentials?: {
-    username?: string;
-    password?: string;
+  credentials: {
+    username: string;
+    password: string;
   };
   switches?: {
     modes?: string[];
@@ -96,8 +96,8 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
   async authenticate(): Promise<void> {
     try {
       const response = await axios.post(`${HeatzyPlatform.API_BASE_URL}/app/login`, {
-        username: this.config.credentials?.username,
-        password: this.config.credentials?.password,
+        username: this.config.credentials.username,
+        password: this.config.credentials.password,
         lang: 'en',
       }, {
         headers: {
@@ -144,7 +144,7 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
       });
 
       const devices = response.data.devices as HeatzyDevice[];
-      const selectedModes = this.config.modes || [];
+      const selectedModes = this.config.switches?.modes || [];
 
       const deviceNames = devices.map(device => device.dev_alias || 'Unnamed Device').join(', ');
 

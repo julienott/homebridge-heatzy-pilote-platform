@@ -16,6 +16,7 @@
       "credentials": {
         "type": "object",
         "title": "Heatzy Account",
+        "required": ["username", "password"],
         "properties": {
           "username": {
             "title": "Email",
