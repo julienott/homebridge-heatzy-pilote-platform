@@ -49,17 +49,14 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
     public readonly config: HeatzyConfig,
     public readonly api: API,
   ) {
-    // Save references to service and characteristic for use in accessories
     this.Service = this.api.hap.Service;
     this.Characteristic = this.api.hap.Characteristic;
-    // Validate configuration
+
     if (!this.validateConfig()) {
       return;
     }
 
     this.log.debug('Finished initializing platform:', this.config.name);
-
-    // When this event is fired, homebridge restored all cached accessories from disk
 
     this.api.on('didFinishLaunching', () => {
       this.log.debug('Executed didFinishLaunching callback');
@@ -140,10 +137,8 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
       const devices = response.data.devices as HeatzyDevice[];
       const selectedModes = this.config.modes || [];
 
-      // Additional code to list device names
       const deviceNames = devices.map(device => device.dev_alias || 'Unnamed Device').join(', ');
 
-      // Handle removed devices
       const existingAccessories = [...this.accessories];
       existingAccessories.forEach(accessory => {
         const isDeviceFetched = devices.some(device => accessory.context.device.did === device.did);
@@ -159,7 +154,6 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
         }
       });
 
-      // Add or update devices
       devices.forEach(device => {
         selectedModes.forEach(mode => {
           this.addAccessory(device, mode);
