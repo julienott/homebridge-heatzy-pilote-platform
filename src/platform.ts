@@ -10,25 +10,24 @@ import {
 } from 'homebridge';
 import { HeatzyAccessory } from './platformAccessory.js';
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
-import { HeatzyDeviceData } from './types.js';
 
 interface HeatzyConfig extends PlatformConfig {
-  credentials: {
-    username: string;
-    password: string;
-  };
-  switches?: {
-    modes?: string[];
-  };
-  security?: {
-    lockThermostats?: boolean;
-  };
+  username?: string;
+  password?: string;
+  modes?: string[];
+}
+
+interface HeatzyDevice {
+  did: string;
+  dev_alias: string;
+  product_name?: string;
+  mac?: string;
+  is_online?: boolean;
 }
 
 interface DeviceState {
   state: string;
   timestamp: number;
-  isLocked?: boolean;
 }
 
 export class HeatzyPlatform implements DynamicPlatformPlugin {
@@ -41,6 +40,7 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
   private token: string | null = null;
   private tokenExpireAt: number | null = null;
 
+  // API constants
   private static readonly API_BASE_URL = 'https://euapi.gizwits.com';
   private static readonly APPLICATION_ID = 'c70a66ff039d41b4a220e198b0fcc8b3';
 
@@ -49,15 +49,18 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
     public readonly config: HeatzyConfig,
     public readonly api: API,
   ) {
+    // Save references to service and characteristic for use in accessories
     this.Service = this.api.hap.Service;
     this.Characteristic = this.api.hap.Characteristic;
 
+    // Validate configuration
     if (!this.validateConfig()) {
       return;
     }
 
     this.log.debug('Finished initializing platform:', this.config.name);
 
+    // When this event is fired, homebridge restored all cached accessories from disk
     this.api.on('didFinishLaunching', () => {
       this.log.debug('Executed didFinishLaunching callback');
       this.authenticate().catch(error => {
@@ -67,21 +70,14 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
   }
 
   private validateConfig(): boolean {
-    if (!this.config.credentials?.username || !this.config.credentials?.password) {
-      this.log.error('Missing required credentials: username and/or password');
+    if (!this.config.username || !this.config.password) {
+      this.log.error('Missing required config: username and/or password');
       return false;
     }
 
-    if (!Array.isArray(this.config.switches?.modes)) {
+    if (!Array.isArray(this.config.modes)) {
       this.log.warn('No modes specified in config, using default modes');
-      if (!this.config.switches) {
-        this.config.switches = {};
-      }
-      this.config.switches.modes = ['Confort', 'Eco'];
-    }
-
-    if (this.config.security?.lockThermostats) {
-      this.log.info('Thermostat locking is enabled');
+      this.config.modes = ['Confort', 'Eco'];
     }
 
     return true;
@@ -90,8 +86,8 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
   async authenticate(): Promise<void> {
     try {
       const response = await axios.post(`${HeatzyPlatform.API_BASE_URL}/app/login`, {
-        username: this.config.credentials.username,
-        password: this.config.credentials.password,
+        username: this.config.username,
+        password: this.config.password,
         lang: 'en',
       }, {
         headers: {
@@ -104,8 +100,7 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
       this.token = response.data.token;
       this.tokenExpireAt = response.data.expire_at * 1000;
 
-      const expirationDate = this.tokenExpireAt ? 
-        new Date(this.tokenExpireAt).toLocaleString() : 'Unknown';
+      const expirationDate = this.tokenExpireAt ? new Date(this.tokenExpireAt).toLocaleString() : 'Unknown';
       this.log.debug(`Authenticated successfully. Token expires at: ${expirationDate}`);
       await this.fetchDevices();
     } catch (error) {
@@ -138,16 +133,16 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
         },
       });
 
-      const devices = response.data.devices as HeatzyDeviceData[];
-      const selectedModes = this.config.switches?.modes || [];
+      const devices = response.data.devices as HeatzyDevice[];
+      const selectedModes = this.config.modes || [];
 
+      // Additional code to list device names
       const deviceNames = devices.map(device => device.dev_alias || 'Unnamed Device').join(', ');
 
+      // Handle removed devices
       const existingAccessories = [...this.accessories];
       existingAccessories.forEach(accessory => {
-        const isDeviceFetched = devices.some(
-          device => accessory.context.device.did === device.did
-        );
+        const isDeviceFetched = devices.some(device => accessory.context.device.did === device.did);
         const isModeSelected = selectedModes.includes(accessory.context.mode);
 
         if (!isDeviceFetched || !isModeSelected) {
@@ -160,6 +155,7 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
         }
       });
 
+      // Add or update devices
       devices.forEach(device => {
         selectedModes.forEach(mode => {
           this.addAccessory(device, mode);
@@ -177,7 +173,7 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
     }
   }
 
-  addAccessory(device: HeatzyDeviceData, mode: string): void {
+  addAccessory(device: HeatzyDevice, mode: string): void {
     const uniqueId = device.did + ' ' + mode;
     const uuid = this.api.hap.uuid.generate(uniqueId);
     const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
@@ -207,19 +203,10 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
     this.accessories.push(accessory);
   }
 
-  updateDeviceState(
-    did: string,
-    activeMode: string,
-    isLocked: boolean | undefined = undefined,
-    forceUpdate = false,
-  ): void {
+  updateDeviceState(did: string, activeMode: string, forceUpdate = false): void {
     const cachedState = this.deviceStateCache[did];
     if (!cachedState || forceUpdate || cachedState.timestamp < Date.now() - 60000) {
-      this.deviceStateCache[did] = { 
-        state: activeMode, 
-        timestamp: Date.now(),
-        isLocked
-      };
+      this.deviceStateCache[did] = { state: activeMode, timestamp: Date.now() };
       this.accessories.forEach(accessory => {
         if (accessory.context.device.did === did) {
           const accessoryInstance = this.accessoryInstances.get(accessory.UUID);
@@ -229,8 +216,8 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
     }
   }
 
-  notifyModeChange(did: string, activeMode: string, isLocked?: boolean): void {
-    this.setDeviceStateCache(did, activeMode, isLocked);
+  notifyModeChange(did: string, activeMode: string): void {
+    this.setDeviceStateCache(did, activeMode);
 
     this.accessories.forEach(accessory => {
       if (accessory.context.device.did === did) {
@@ -245,21 +232,14 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
   getDeviceState(did: string): string | null {
     const cachedState = this.deviceStateCache[did];
     if (cachedState) {
-      const lockStatus = cachedState.isLocked !== undefined ? 
-        (cachedState.isLocked ? '\u001b[33mLocked\u001b[0m' : '\u001b[36mUnlocked\u001b[0m') : 
-        'Unknown lock state';
-      this.log.debug(`Retrieving cached state for device '${did}': ${cachedState.state} (${lockStatus})`);
+      this.log.debug(`Retrieving cached state for device '${did}': ${cachedState.state}`);
       return cachedState.state;
     }
     return null;
   }
 
-  setDeviceStateCache(did: string, newState: string, isLocked?: boolean): void {
-    this.deviceStateCache[did] = { 
-      state: newState, 
-      timestamp: Date.now(),
-      isLocked
-    };
+  setDeviceStateCache(did: string, newState: string): void {
+    this.deviceStateCache[did] = { state: newState, timestamp: Date.now() };
   }
 
   getToken(): string | null {
