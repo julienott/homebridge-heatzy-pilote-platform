@@ -33,12 +33,6 @@
         "type": "boolean",
         "default": false,
         "description": "Lock thermostats after mode changes"
-      },
-      "lockThermostats": {
-        "title": "Lock Thermostats",
-        "type": "boolean",
-        "default": false,
-        "description": "Lock thermostats after mode changes"
       }
     }
   },

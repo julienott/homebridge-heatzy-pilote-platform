@@ -117,7 +117,7 @@ export class HeatzyAccessory {
       const payload = {
         attrs: {
           mode: modeToSet,
-          ...(this.platform.config.lockThermostats && { lock_witch: 1 })
+          ...(this.platform.config.lockThermostats && { lock_switch: 1 })
         }
       };
 
