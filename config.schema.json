@@ -7,58 +7,29 @@
   "schema": {
     "type": "object",
     "properties": {
-      "name": {
-        "title": "Name",
+      "username": {
+        "title": "Email",
         "type": "string",
-        "default": "Heatzy",
         "required": true
       },
-      "credentials": {
-        "type": "object",
-        "title": "Heatzy Account",
-        "required": ["username", "password"],
-        "properties": {
-          "username": {
-            "title": "Email",
-            "type": "string",
-            "required": true
-          },
-          "password": {
-            "title": "Password",
-            "type": "string",
-            "required": true,
-            "format": "password"
-          }
-        }
+      "password": {
+        "title": "Password",
+        "type": "string",
+        "required": true,
+        "format": "password"
       },
-      "switches": {
-        "type": "object",
-        "title": "Switch Configuration",
-        "properties": {
-          "modes": {
-            "title": "Choose the switch modes you wish to show",
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": ["Confort", "Eco", "Eco Plus", "Sleep", "Antifreeze"]
-            },
-            "uniqueItems": true,
-            "minItems": 1
-          }
-        }
-      },
-      "security": {
-        "type": "object",
-        "title": "Security Settings",
-        "properties": {
-          "lockThermostats": {
-            "title": "Lock Thermostats",
-            "type": "boolean",
-            "default": false,
-            "description": "Lock thermostats after mode changes to prevent manual adjustments"
-          }
-        }
+      "modes": {
+        "title": "Choose the switch modes you wish to show.",
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": ["Confort", "Eco", "Eco Plus", "Sleep", "Antifreeze"]
+        },
+        "uniqueItems": true,
+        "minItems": 1
       }
     }
-  }
+  },
+  "form": null,
+  "display": null
 }
