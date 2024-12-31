@@ -5,30 +5,21 @@ import {
   CharacteristicValue,
 } from 'homebridge';
 import { HeatzyPlatform } from './platform.js';
-
-interface HeatzyDeviceData {
-  did: string;
-  dev_alias: string;
-  product_name?: string;
-  mac?: string;
-  is_online?: boolean;
-}
-
-interface HeatzyDeviceResponse {
-  attr: {
-    mode: string;
-    [key: string]: string;
-  };
-}
+import { 
+  BinaryState,
+  HeatzyMode,
+  HeatzyDeviceData,
+  HeatzyDeviceResponse,
+} from './types.js';
 
 export class HeatzyAccessory {
   private service: Service;
   private readonly modeMapping = {
-    'Confort': 0,
-    'Eco': 4,
-    'Eco Plus': 5,
-    'Sleep': 1,
-    'Antifreeze': 2,
+    'Confort': HeatzyMode.Comfort,
+    'Eco': HeatzyMode.Eco,
+    'Eco Plus': HeatzyMode.EcoPlus,
+    'Sleep': HeatzyMode.Sleep,
+    'Antifreeze': HeatzyMode.Antifreeze,
   } as const;
 
   private readonly reverseModeMapping = {
@@ -40,7 +31,7 @@ export class HeatzyAccessory {
     'cft2': 'Eco Plus',
   } as const;
 
-  private readonly off_mode = 3;
+  private readonly off_mode = HeatzyMode.Off;
   private readonly mode: string;
   private static readonly API_BASE_URL = 'https://euapi.gizwits.com';
   private static readonly APPLICATION_ID = 'c70a66ff039d41b4a220e198b0fcc8b3';
@@ -89,11 +80,20 @@ export class HeatzyAccessory {
 
       if (response.data?.attr) {
         const apiMode = response.data.attr.mode;
-        const currentMode = this.reverseModeMapping[apiMode as keyof typeof this.reverseModeMapping] || 'Unknown';
+        const currentMode = this.reverseModeMapping[
+          Object.keys(this.reverseModeMapping)[apiMode]
+        ] || 'Unknown';
         const isOn = currentMode === this.mode;
         
+        const isLocked = response.data.attr.lock_switch === 1;
+        const lockStatus = isLocked ? 
+          '\u001b[33mLocked\u001b[0m' : '\u001b[36mUnlocked\u001b[0m';
+        this.platform.log.info(
+          `Device '${this.accessory.displayName}' lock status: ${lockStatus}`
+        );
+        
         this.service.updateCharacteristic(this.platform.Characteristic.On, isOn);
-        this.platform.updateDeviceState(this.device.did, currentMode, true);
+        this.platform.updateDeviceState(this.device.did, currentMode, isLocked, true);
 
         const stateText = isOn ? '\u001b[32mOn\u001b[0m' : '\u001b[31mOff\u001b[0m';
         const logMessage = `Initialized '${this.accessory.displayName}' with state: ${stateText}`;
@@ -112,12 +112,16 @@ export class HeatzyAccessory {
         await this.platform.authenticate();
       }
 
-      const modeToSet = value ? this.modeMapping[this.mode as keyof typeof this.modeMapping] : this.off_mode;
+      const modeToSet = value ? 
+        this.modeMapping[this.mode as keyof typeof this.modeMapping] : 
+        this.off_mode;
       const url = `${HeatzyAccessory.API_BASE_URL}/app/control/${this.device.did}`;
       const payload = {
         attrs: {
           mode: modeToSet,
-          ...(this.platform.config.security?.lockThermostats && { lock_switch: 1 })
+          ...(this.platform.config.security?.lockThermostats && { 
+            lock_switch: 1 as BinaryState 
+          })
         }
       };
 
@@ -128,14 +132,17 @@ export class HeatzyAccessory {
         },
       });
 
+      const isLocked = this.platform.config.security?.lockThermostats;
       if (value) {
-        this.platform.setDeviceStateCache(this.device.did, this.mode);
-        this.platform.notifyModeChange(this.device.did, this.mode);
+        this.platform.setDeviceStateCache(this.device.did, this.mode, isLocked);
+        this.platform.notifyModeChange(this.device.did, this.mode, isLocked);
       } else {
-        this.platform.setDeviceStateCache(this.device.did, 'stop');
+        this.platform.setDeviceStateCache(this.device.did, 'stop', isLocked);
       }
 
-      this.platform.log.info(`Changed '${this.accessory.displayName}' to: ${value ? 'On' : 'Off'}`);
+      this.platform.log.info(
+        `Changed '${this.accessory.displayName}' to: ${value ? 'On' : 'Off'}`
+      );
     } catch (error) {
       this.handleError('Failed to set device state', error);
       this.service.updateCharacteristic(this.platform.Characteristic.On, !value as boolean);
@@ -181,9 +188,18 @@ export class HeatzyAccessory {
 
       if (response.data?.attr) {
         const apiMode = response.data.attr.mode;
-        const currentMode = this.reverseModeMapping[apiMode as keyof typeof this.reverseModeMapping] || 'Unknown';
-        this.platform.setDeviceStateCache(this.device.did, currentMode);
-        this.platform.log.debug(`Successfully received state for '${this.accessory.displayName}': ${currentMode}`);
+        const currentMode = this.reverseModeMapping[
+          Object.keys(this.reverseModeMapping)[apiMode]
+        ] || 'Unknown';
+        const isLocked = response.data.attr.lock_switch === 1;
+        this.platform.setDeviceStateCache(this.device.did, currentMode, isLocked);
+
+        const lockStatus = isLocked ? 
+          '\u001b[33mLocked\u001b[0m' : '\u001b[36mUnlocked\u001b[0m';
+        this.platform.log.debug(
+          `Successfully received state for '${this.accessory.displayName}': ` +
+          `${currentMode} (${lockStatus})`
+        );
         return currentMode === this.mode;
       }
       
@@ -196,12 +212,20 @@ export class HeatzyAccessory {
 
   private handleError(context: string, error: unknown): void {
     if (error instanceof AxiosError && error.response) {
-      this.platform.log.error(`${context} for '${this.accessory.displayName}', Status Code: ${error.response.status}`);
+      this.platform.log.error(
+        `${context} for '${this.accessory.displayName}', ` +
+        `Status Code: ${error.response.status}`
+      );
       this.platform.log.debug('Error details:', error.response.data);
     } else if (error instanceof Error) {
-      this.platform.log.error(`${context} for '${this.accessory.displayName}':`, error.message);
+      this.platform.log.error(
+        `${context} for '${this.accessory.displayName}':`,
+        error.message
+      );
     } else {
-      this.platform.log.error(`${context} for '${this.accessory.displayName}' with unknown error type`);
+      this.platform.log.error(
+        `${context} for '${this.accessory.displayName}' with unknown error type`
+      );
     }
   }
 
