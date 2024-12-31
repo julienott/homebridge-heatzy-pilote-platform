@@ -12,10 +12,16 @@ import { HeatzyAccessory } from './platformAccessory.js';
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
 
 interface HeatzyConfig extends PlatformConfig {
-  username?: string;
-  password?: string;
-  modes?: string[];
-  lockThermostats?: boolean;
+  credentials?: {
+    username?: string;
+    password?: string;
+  };
+  switches?: {
+    modes?: string[];
+  };
+  security?: {
+    lockThermostats?: boolean;
+  };
 }
 
 interface HeatzyDevice {
@@ -67,17 +73,20 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
   }
 
   private validateConfig(): boolean {
-    if (!this.config.username || !this.config.password) {
-      this.log.error('Missing required config: username and/or password');
+    if (!this.config.credentials?.username || !this.config.credentials?.password) {
+      this.log.error('Missing required credentials: username and/or password');
       return false;
     }
 
-    if (!Array.isArray(this.config.modes)) {
+    if (!Array.isArray(this.config.switches?.modes)) {
       this.log.warn('No modes specified in config, using default modes');
-      this.config.modes = ['Confort', 'Eco'];
+      if (!this.config.switches) {
+        this.config.switches = {};
+      }
+      this.config.switches.modes = ['Confort', 'Eco'];
     }
 
-    if (this.config.lockThermostats) {
+    if (this.config.security?.lockThermostats) {
       this.log.info('Thermostat locking is enabled');
     }
 
@@ -87,8 +96,8 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
   async authenticate(): Promise<void> {
     try {
       const response = await axios.post(`${HeatzyPlatform.API_BASE_URL}/app/login`, {
-        username: this.config.username,
-        password: this.config.password,
+        username: this.config.credentials?.username,
+        password: this.config.credentials?.password,
         lang: 'en',
       }, {
         headers: {
