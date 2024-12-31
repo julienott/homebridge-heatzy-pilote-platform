@@ -1,47 +1,44 @@
-import { PlatformConfig } from 'homebridge';
+type BinaryState = 0 | 1;
 
-export interface HeatzyPlatformConfig extends PlatformConfig {
-  username?: string;
-  password?: string;
-  modes?: string[];
+enum HeatzyMode {
+  Comfort = 0,
+  Sleep = 1,
+  Antifreeze = 2,
+  Off = 3,
+  Eco = 4,
+  EcoPlus = 5,
 }
 
-export interface HeatzyDevice {
+interface HeatzyDeviceResponse {
   did: string;
+  created_at: number;
+  updated_at: number;
+  attr: {
+    mode: HeatzyMode;
+    derog_mode?: BinaryState;
+    derog_time?: number;
+    lock_switch?: BinaryState;
+    timer_switch?: BinaryState;
+    pX_dataY?: number;
+    [key: string]: number | undefined;
+  };
+}
+
+interface HeatzyDeviceData {
+  did: string;
+  mac: string;
+  product_key: string;
   dev_alias: string;
+  is_online: boolean;
+  wifi_soft_version?: string;
+  mcu_soft_version?: string;
   product_name?: string;
-  mac?: string;
-  is_online?: boolean;
+  [key: string]: string | boolean | undefined;
 }
 
-export interface DeviceState {
-  state: string;
-  timestamp: number;
-}
-
-export enum HeatzyMode {
-  CONFORT = 'Confort',
-  ECO = 'Eco',
-  ECO_PLUS = 'Eco Plus',
-  SLEEP = 'Sleep',
-  ANTIFREEZE = 'Antifreeze',
-  OFF = 'Off'
-}
-
-export const ModeMappings = {
-  [HeatzyMode.CONFORT]: 0,
-  [HeatzyMode.ECO]: 4,
-  [HeatzyMode.ECO_PLUS]: 5,
-  [HeatzyMode.SLEEP]: 1,
-  [HeatzyMode.ANTIFREEZE]: 2,
-  [HeatzyMode.OFF]: 3,
-} as const;
-
-export const ApiModeMappings = {
-  'cft': HeatzyMode.CONFORT,
-  'eco': HeatzyMode.SLEEP,
-  'fro': HeatzyMode.ANTIFREEZE,
-  'stop': HeatzyMode.OFF,
-  'cft1': HeatzyMode.ECO,
-  'cft2': HeatzyMode.ECO_PLUS,
-} as const;
+export {
+  BinaryState,
+  HeatzyMode,
+  HeatzyDeviceResponse,
+  HeatzyDeviceData,
+};
