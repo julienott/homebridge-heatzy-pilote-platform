@@ -27,6 +27,12 @@
         },
         "uniqueItems": true,
         "minItems": 1
+      },
+      "lockThermostats": {
+      "title": "Lock Thermostats on Mode Change",
+      "type": "boolean",
+      "default": false,
+      "description": "If enabled, thermostats will be locked when changing modes."
       }
     }
   },

@@ -71,13 +71,18 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
 
   private validateConfig(): boolean {
     if (!this.config.username || !this.config.password) {
-      this.log.error('Missing required config: username and/or password');
+      this.log.error('Missing required config: username and/or password. Visit the plugin configuration.');
       return false;
     }
 
     if (!Array.isArray(this.config.modes)) {
       this.log.warn('No modes specified in config, using default modes');
       this.config.modes = ['Confort', 'Eco'];
+    }
+
+    if (typeof this.config.lockThermostats !== 'boolean') {
+      this.log.warn('lockThermostats not specified in config, defaulting to false');
+      this.config.lockThermostats = false;
     }
 
     return true;
