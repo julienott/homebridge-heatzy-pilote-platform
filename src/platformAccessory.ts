@@ -114,12 +114,7 @@ export class HeatzyAccessory {
 
       const modeToSet = value ? this.modeMapping[this.mode as keyof typeof this.modeMapping] : this.off_mode;
       const url = `${HeatzyAccessory.API_BASE_URL}/app/control/${this.device.did}`;
-      const payload = { 
-        attrs: { 
-            mode: modeToSet,
-            lock_switch: 1
-        }
-      };
+      const payload = { attrs: { mode: modeToSet } };
 
       await axios.post(url, payload, {
         headers: {
