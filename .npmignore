@@ -8,12 +8,16 @@ src
 
 # eslint
 .eslintrc
+eslint.config.js
 
 # typescript
 tsconfig.json
 
 # vscode
 .vscode
+
+# claude code
+.claude
 
 # nodemon
 nodemon.json
