@@ -39,10 +39,12 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
   private readonly accessoryInstances: Map<string, HeatzyAccessory> = new Map();
   private token: string | null = null;
   private tokenExpireAt: number | null = null;
+  private authPromise: Promise<void> | null = null;
 
   // API constants
   private static readonly API_BASE_URL = 'https://euapi.gizwits.com';
   private static readonly APPLICATION_ID = 'c70a66ff039d41b4a220e198b0fcc8b3';
+  private static readonly TOKEN_REFRESH_BUFFER = 5 * 60 * 1000; // 5 minutes
 
   constructor(
     public readonly log: Logger,
@@ -89,6 +91,19 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
   }
 
   async authenticate(): Promise<void> {
+    if (this.authPromise) {
+      return this.authPromise;
+    }
+
+    this.authPromise = this._authenticate();
+    try {
+      await this.authPromise;
+    } finally {
+      this.authPromise = null;
+    }
+  }
+
+  private async _authenticate(): Promise<void> {
     try {
       const response = await axios.post(`${HeatzyPlatform.API_BASE_URL}/app/login`, {
         username: this.config.username,
@@ -185,6 +200,8 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
 
     if (existingAccessory) {
       this.log.debug('Restoring existing accessory from cache:', existingAccessory.displayName);
+      const existingInstance = this.accessoryInstances.get(existingAccessory.UUID);
+      existingInstance?.stopPolling();
       existingAccessory.context.device = device;
       existingAccessory.context.mode = mode;
       const accessoryInstance = new HeatzyAccessory(this, existingAccessory, device, mode);
@@ -252,6 +269,6 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
   }
 
   needsAuthentication(): boolean {
-    return !this.token || !this.tokenExpireAt || this.tokenExpireAt < Date.now();
+    return !this.token || !this.tokenExpireAt || this.tokenExpireAt - HeatzyPlatform.TOKEN_REFRESH_BUFFER < Date.now();
   }
 }

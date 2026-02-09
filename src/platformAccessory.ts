@@ -44,6 +44,8 @@ export class HeatzyAccessory {
   private readonly mode: string;
   private static readonly API_BASE_URL = 'https://euapi.gizwits.com';
   private static readonly APPLICATION_ID = 'c70a66ff039d41b4a220e198b0fcc8b3';
+  private pollTimeout: NodeJS.Timeout | null = null;
+  private lastUserAction = 0;
 
   constructor(
     private readonly platform: HeatzyPlatform,
@@ -134,6 +136,8 @@ export class HeatzyAccessory {
         }`
       );
 
+      this.lastUserAction = Date.now();
+
       if (value) {
         this.platform.setDeviceStateCache(this.device.did, this.mode);
         this.platform.notifyModeChange(this.device.did, this.mode);
@@ -141,7 +145,6 @@ export class HeatzyAccessory {
         this.platform.setDeviceStateCache(this.device.did, 'stop');
       }
 
-      this.platform.log.info(`Changed '${this.accessory.displayName}' to: ${value ? 'On' : 'Off'}`);
     } catch (error) {
       this.handleError('Failed to set device state', error);
       this.service.updateCharacteristic(this.platform.Characteristic.On, !value as boolean);
@@ -211,11 +214,23 @@ export class HeatzyAccessory {
     }
   }
 
+  public stopPolling(): void {
+    if (this.pollTimeout) {
+      clearTimeout(this.pollTimeout);
+      this.pollTimeout = null;
+    }
+  }
+
   private startPolling(): void {
     const basePollingInterval = 60000;
     const randomInterval = () => Math.floor(Math.random() * 10000) + 5000;
 
     const poll = async () => {
+      if (Date.now() - this.lastUserAction < 10000) {
+        this.pollTimeout = setTimeout(poll, basePollingInterval + randomInterval());
+        return;
+      }
+
       try {
         const isOn = await this.getDeviceState();
         this.service.updateCharacteristic(this.platform.Characteristic.On, isOn);
@@ -223,9 +238,10 @@ export class HeatzyAccessory {
         this.handleError('Error during polling', error);
       }
 
-      setTimeout(poll, basePollingInterval + randomInterval());
+      this.pollTimeout = setTimeout(poll, basePollingInterval + randomInterval());
     };
 
-    poll();
+    // Premier poll décalé — fetchInitialState s'en charge au démarrage
+    this.pollTimeout = setTimeout(poll, basePollingInterval + randomInterval());
   }
 }
