@@ -1,6 +1,12 @@
 # Ignore compiled code
 dist
 
+# OS files
+.DS_Store
+
+# IDE
+.vscode/
+
 # ------------- Defaults ------------- #
 
 # Logs
@@ -86,7 +92,6 @@ web_modules/
 
 # Nuxt.js build / generate output
 .nuxt
-dist
 
 # Gatsby files
 .cache/
