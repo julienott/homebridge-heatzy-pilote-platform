@@ -29,6 +29,7 @@ export class HeatzyAccessory {
     'Eco Plus': 5,
     'Sleep': 1,
     'Antifreeze': 2,
+    'Off': 3,
   } as const;
 
   private readonly reverseModeMapping = {
@@ -142,7 +143,7 @@ export class HeatzyAccessory {
         this.platform.setDeviceStateCache(this.device.did, this.mode);
         this.platform.notifyModeChange(this.device.did, this.mode);
       } else {
-        this.platform.setDeviceStateCache(this.device.did, 'stop');
+        this.platform.setDeviceStateCache(this.device.did, 'Off');
       }
 
     } catch (error) {

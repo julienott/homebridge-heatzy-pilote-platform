@@ -23,7 +23,7 @@
         "type": "array",
         "items": {
           "type": "string",
-          "enum": ["Confort", "Eco", "Eco Plus", "Sleep", "Antifreeze"]
+          "enum": ["Confort", "Eco", "Eco Plus", "Sleep", "Antifreeze", "Off"]
         },
         "uniqueItems": true,
         "minItems": 1
