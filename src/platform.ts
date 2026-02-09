@@ -37,6 +37,7 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
   private readonly accessories: PlatformAccessory[] = [];
   private readonly deviceStateCache: Record<string, DeviceState> = {};
   private readonly accessoryInstances: Map<string, HeatzyAccessory> = new Map();
+  private readonly lastUserActionPerDevice: Record<string, number> = {};
   private token: string | null = null;
   private tokenExpireAt: number | null = null;
   private authPromise: Promise<void> | null = null;
@@ -227,15 +228,16 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
 
   updateDeviceState(did: string, activeMode: string, forceUpdate = false): void {
     const cachedState = this.deviceStateCache[did];
-    if (!cachedState || forceUpdate || cachedState.timestamp < Date.now() - 60000) {
-      this.deviceStateCache[did] = { state: activeMode, timestamp: Date.now() };
-      this.accessories.forEach(accessory => {
-        if (accessory.context.device.did === did) {
-          const accessoryInstance = this.accessoryInstances.get(accessory.UUID);
-          accessoryInstance?.updateState(activeMode);
-        }
-      });
+    if (!forceUpdate && cachedState?.state === activeMode) {
+      return;
     }
+    this.deviceStateCache[did] = { state: activeMode, timestamp: Date.now() };
+    this.accessories.forEach(accessory => {
+      if (accessory.context.device.did === did) {
+        const accessoryInstance = this.accessoryInstances.get(accessory.UUID);
+        accessoryInstance?.updateState(activeMode);
+      }
+    });
   }
 
   notifyModeChange(did: string, activeMode: string): void {
@@ -244,9 +246,7 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
     this.accessories.forEach(accessory => {
       if (accessory.context.device.did === did) {
         const accessoryInstance = this.accessoryInstances.get(accessory.UUID);
-        if (accessoryInstance && accessoryInstance.getMode() !== activeMode) {
-          accessoryInstance.updateState('off');
-        }
+        accessoryInstance?.updateState(activeMode);
       }
     });
   }
@@ -262,6 +262,15 @@ export class HeatzyPlatform implements DynamicPlatformPlugin {
 
   setDeviceStateCache(did: string, newState: string): void {
     this.deviceStateCache[did] = { state: newState, timestamp: Date.now() };
+  }
+
+  setLastUserAction(did: string): void {
+    this.lastUserActionPerDevice[did] = Date.now();
+  }
+
+  shouldSkipPolling(did: string): boolean {
+    const lastAction = this.lastUserActionPerDevice[did] || 0;
+    return Date.now() - lastAction < 10000;
   }
 
   getToken(): string | null {

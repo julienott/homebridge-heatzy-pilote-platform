@@ -46,7 +46,6 @@ export class HeatzyAccessory {
   private static readonly API_BASE_URL = 'https://euapi.gizwits.com';
   private static readonly APPLICATION_ID = 'c70a66ff039d41b4a220e198b0fcc8b3';
   private pollTimeout: NodeJS.Timeout | null = null;
-  private lastUserAction = 0;
 
   constructor(
     private readonly platform: HeatzyPlatform,
@@ -77,27 +76,11 @@ export class HeatzyAccessory {
 
   private async fetchInitialState(): Promise<void> {
     try {
-      if (this.platform.needsAuthentication()) {
-        await this.platform.authenticate();
-      }
-
-      const url = `${HeatzyAccessory.API_BASE_URL}/app/devdata/${this.device.did}/latest`;
-      const response = await axios.get<HeatzyDeviceResponse>(url, {
-        headers: {
-          'Accept': 'application/json',
-          'X-Gizwits-User-token': this.platform.getToken(),
-          'X-Gizwits-Application-Id': HeatzyAccessory.APPLICATION_ID,
-        },
-      });
-
-      if (response.data?.attr) {
-        const apiMode = response.data.attr.mode;
-        const currentMode = this.reverseModeMapping[apiMode as keyof typeof this.reverseModeMapping] || 'Unknown';
-        const isOn = currentMode === this.mode;
-        
-        this.service.updateCharacteristic(this.platform.Characteristic.On, isOn);
+      const currentMode = await this.fetchDeviceMode();
+      if (currentMode) {
         this.platform.updateDeviceState(this.device.did, currentMode, true);
 
+        const isOn = currentMode === this.mode;
         const stateText = isOn ? '\u001b[32mOn\u001b[0m' : '\u001b[31mOff\u001b[0m';
         const logMessage = `Initialized '${this.accessory.displayName}' with state: ${stateText}`;
         this.platform.log[isOn ? 'info' : 'debug'](logMessage);
@@ -137,14 +120,10 @@ export class HeatzyAccessory {
         }`
       );
 
-      this.lastUserAction = Date.now();
+      this.platform.setLastUserAction(this.device.did);
 
-      if (value) {
-        this.platform.setDeviceStateCache(this.device.did, this.mode);
-        this.platform.notifyModeChange(this.device.did, this.mode);
-      } else {
-        this.platform.setDeviceStateCache(this.device.did, 'Off');
-      }
+      const activeMode = value ? this.mode : 'Off';
+      this.platform.notifyModeChange(this.device.did, activeMode);
 
     } catch (error) {
       this.handleError('Failed to set device state', error);
@@ -174,34 +153,28 @@ export class HeatzyAccessory {
     this.service.updateCharacteristic(this.platform.Characteristic.On, isOn);
   }
 
-  private async getDeviceState(): Promise<boolean> {
-    try {
-      if (this.platform.needsAuthentication()) {
-        await this.platform.authenticate();
-      }
-
-      const url = `${HeatzyAccessory.API_BASE_URL}/app/devdata/${this.device.did}/latest`;
-      const response = await axios.get<HeatzyDeviceResponse>(url, {
-        headers: {
-          'Accept': 'application/json',
-          'X-Gizwits-User-token': this.platform.getToken(),
-          'X-Gizwits-Application-Id': HeatzyAccessory.APPLICATION_ID,
-        },
-      });
-
-      if (response.data?.attr) {
-        const apiMode = response.data.attr.mode;
-        const currentMode = this.reverseModeMapping[apiMode as keyof typeof this.reverseModeMapping] || 'Unknown';
-        this.platform.setDeviceStateCache(this.device.did, currentMode);
-        this.platform.log.debug(`Successfully received state for '${this.accessory.displayName}': ${currentMode}`);
-        return currentMode === this.mode;
-      }
-      
-      throw new Error('Invalid response format');
-    } catch (error) {
-      this.handleError('Error getting device state', error);
-      return false;
+  private async fetchDeviceMode(): Promise<string | null> {
+    if (this.platform.needsAuthentication()) {
+      await this.platform.authenticate();
     }
+
+    const url = `${HeatzyAccessory.API_BASE_URL}/app/devdata/${this.device.did}/latest`;
+    const response = await axios.get<HeatzyDeviceResponse>(url, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Gizwits-User-token': this.platform.getToken(),
+        'X-Gizwits-Application-Id': HeatzyAccessory.APPLICATION_ID,
+      },
+    });
+
+    if (response.data?.attr) {
+      const apiMode = response.data.attr.mode;
+      const currentMode = this.reverseModeMapping[apiMode as keyof typeof this.reverseModeMapping] || 'Unknown';
+      this.platform.log.debug(`Fetched device mode for '${this.device.did}': ${currentMode}`);
+      return currentMode;
+    }
+
+    return null;
   }
 
   private handleError(context: string, error: unknown): void {
@@ -227,14 +200,17 @@ export class HeatzyAccessory {
     const randomInterval = () => Math.floor(Math.random() * 10000) + 5000;
 
     const poll = async () => {
-      if (Date.now() - this.lastUserAction < 10000) {
+      if (this.platform.shouldSkipPolling(this.device.did)) {
         this.pollTimeout = setTimeout(poll, basePollingInterval + randomInterval());
         return;
       }
 
       try {
-        const isOn = await this.getDeviceState();
-        this.service.updateCharacteristic(this.platform.Characteristic.On, isOn);
+        const currentMode = await this.fetchDeviceMode();
+        // Double-check: if user acted during the API call, discard stale response
+        if (currentMode && !this.platform.shouldSkipPolling(this.device.did)) {
+          this.platform.updateDeviceState(this.device.did, currentMode);
+        }
       } catch (error) {
         this.handleError('Error during polling', error);
       }
